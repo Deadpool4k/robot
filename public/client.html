@@ -226,20 +226,21 @@
         video.addEventListener('error', recoverVideoPlayback);
 
         socket.on('sync-state', (state) => {
-            if (state.blackout) {
-                gameDiv.style.display = 'none';
-                blackoutDiv.style.display = 'block';
-                gameRunning = false;
-            } else {
-                blackoutDiv.style.display = 'none';
-            }
+    console.log('Sync state:', state);
+    if (state.blackout) {
+        gameDiv.style.display = 'none';
+        blackoutDiv.style.display = 'block';
+        gameRunning = false;
+    } else {
+        blackoutDiv.style.display = 'none';
+    }
 
-            if (state.videoPlaying) {
-                showVideo();
-            } else {
-                videoWrapper.style.display = 'none';
-            }
-        });
+    if (state.videoPlaying) {
+        showVideo();
+    } else {
+        videoWrapper.style.display = 'none';
+    }
+});
 
         socket.on('blackout', () => {
             gameDiv.style.display = 'none';

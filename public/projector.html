@@ -17,21 +17,18 @@
         video { width: 100%; height: 100%; object-fit: cover; }
         .blackout { z-index: 999; }
         .hidden { display: none; }
-        .sound-gate {
+        .sound-hint {
             position: fixed;
-            left: 0; right: 0;
-            bottom: 30px;
-            margin: 0 auto;
-            width: fit-content;
-            max-width: calc(100% - 40px);
-            background: rgba(0,0,0,0.75);
-            color: #fff;
-            padding: 14px 18px;
-            border-radius: 14px;
-            font-size: 18px;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 8px;
+            font-size: 14px;
             z-index: 2000;
-            display: none;
-            border: 1px solid rgba(255,255,255,0.2);
+            pointer-events: none;
         }
     </style>
 </head>
@@ -41,8 +38,10 @@
         <h1>SCANEAZĂ PENTRU A INTRĂ ÎN ARENĂ</h1>
     </div>
     <div class="blackout" id="blackout"></div>
-    <div class="video-wrapper" id="videoWrapper"><video id="eventVideo" preload="auto" playsinline muted></video></div>
-    <div class="sound-gate" id="soundGate">Apasă oriunde pe ecran pentru sunet</div>
+    <div class="video-wrapper" id="videoWrapper">
+        <video id="eventVideo" preload="auto" playsinline></video>
+    </div>
+    <div class="sound-hint" id="soundHint">🔊 Atinge ecranul pentru a activa sunetul</div>
 
     <script>
         const socket = io();
@@ -56,103 +55,91 @@
         const videoWrapper = document.getElementById('videoWrapper');
         const blackoutDiv = document.getElementById('blackout');
         const appDiv = document.getElementById('app');
-        const soundGate = document.getElementById('soundGate');
+        const soundHint = document.getElementById('soundHint');
+
+        let soundEnabled = false;
+        let videoStarted = false;
 
         fetch('/api/config')
             .then(r => r.json())
+            .catch(() => ({}))
             .then(cfg => {
-                const url = (cfg?.videoUrl || '/0501.mp4').toString();
-                video.src = encodeURI(url);
-                video.load();
-            })
-            .catch(() => {
-                video.src = '/0501.mp4';
+                video.src = cfg.videoUrl || '/0501.mp4';
                 video.load();
             });
 
-        function tryEnableSound() {
-            // Unmute requires a user gesture in most browsers.
+        function enableSoundAndPlay() {
+            if (soundEnabled) return;
+            soundEnabled = true;
             video.muted = false;
-            soundGate.style.display = 'none';
-            return video.play().catch(() => {
-                // If still blocked, keep the prompt visible.
-                video.muted = true;
-                soundGate.style.display = 'block';
-            });
+            soundHint.style.opacity = '0';
+            setTimeout(() => { soundHint.style.display = 'none'; }, 500);
+            if (videoStarted) {
+                video.play().catch(e => console.log('play error:', e));
+            }
         }
 
         function showVideo() {
+            videoStarted = true;
             blackoutDiv.style.display = 'none';
+            appDiv.classList.add('hidden');
             videoWrapper.style.display = 'block';
-            // Start muted for reliable autoplay, then try to enable sound.
-            soundGate.style.display = 'none';
-            video.muted = true;
-            video.play()
-                .then(() => {
-                    // Attempt to unmute; if blocked, show "tap for sound".
-                    tryEnableSound();
-                })
-                .catch(e => {
-                    console.log(e);
-                    soundGate.style.display = 'block';
-                });
+            
+            if (soundEnabled) {
+                video.muted = false;
+                video.play().catch(e => console.log('play error:', e));
+            } else {
+                video.muted = true;
+                video.play()
+                    .then(() => {
+                        // video a pornit fără sunet, așteptăm click pentru sunet
+                        soundHint.style.display = 'block';
+                    })
+                    .catch(e => console.log('autoplay error:', e));
+            }
         }
 
-        // Recover from buffering stalls on unstable networks/devices
-        let lastRecoverAt = 0;
-        function recoverVideoPlayback() {
-            const now = Date.now();
-            if (now - lastRecoverAt < 1500) return;
-            lastRecoverAt = now;
-            if (videoWrapper.style.display !== 'block') return;
-            video.play().catch(() => {
-                try {
-                    video.load();
-                    video.play().catch(() => {});
-                } catch {}
-            });
-        }
-        video.addEventListener('stalled', recoverVideoPlayback);
-        video.addEventListener('waiting', recoverVideoPlayback);
-        video.addEventListener('error', recoverVideoPlayback);
+        // activare sunet la primul click pe orice parte a paginii
+        document.body.addEventListener('click', enableSoundAndPlay, { once: true });
+        document.body.addEventListener('touchstart', enableSoundAndPlay, { once: true });
 
         socket.on('sync-state', (state) => {
             if (state.blackout) {
                 appDiv.classList.add('hidden');
                 blackoutDiv.style.display = 'block';
-            } else {
-                blackoutDiv.style.display = 'none';
             }
-
             if (state.videoPlaying) {
-                appDiv.classList.add('hidden');
                 showVideo();
-            } else {
-                videoWrapper.style.display = 'none';
             }
         });
-        socket.on('blackout', () => { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; });
-        socket.on('play-video', showVideo);
+
+        socket.on('blackout', () => {
+            appDiv.classList.add('hidden');
+            blackoutDiv.style.display = 'block';
+        });
+
+        socket.on('play-video', () => {
+            showVideo();
+        });
+
         socket.on('restart', () => {
             appDiv.classList.remove('hidden');
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'none';
-            soundGate.style.display = 'none';
             video.pause();
             video.currentTime = 0;
             video.muted = true;
+            soundEnabled = false;
+            videoStarted = false;
+            soundHint.style.display = 'block';
+            soundHint.style.opacity = '1';
         });
 
         document.body.addEventListener('click', () => {
-            const el = document.documentElement;
-            if (document.fullscreenElement) return;
-            if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            }
         });
-
-        // User gesture hook for enabling sound at any time while video is visible
-        document.body.addEventListener('click', () => {
-            if (videoWrapper.style.display === 'block') tryEnableSound();
-        }, { passive: true });
     </script>
 </body>
 </html>
