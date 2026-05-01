@@ -61,13 +61,17 @@
         video.load();
 
         let userInteracted = false;
+        let audioUnlocked = false;
         function onUserGesture() {
             userInteracted = true;
-            tryEnableAudio();
+            audioUnlocked = true; // remember intent; don't start playback now
+            if (videoWrapper.style.display === 'block') {
+                tryEnableAudio();
+            }
         }
 
         function tryEnableAudio() {
-            if (!userInteracted) return;
+            if (!audioUnlocked) return;
             video.muted = false;
             video.volume = 1;
             video.play().catch(() => {});
@@ -80,6 +84,7 @@
         }
 
         function syncAndShowVideo(payload) {
+            console.log('play-video payload', payload);
             const nowMs = payload?.nowMs ?? Date.now();
             const startAtMs = payload?.videoStartAtMs ?? null;
             const elapsedSec = (startAtMs ? Math.max(0, (nowMs - startAtMs) / 1000) : 0);

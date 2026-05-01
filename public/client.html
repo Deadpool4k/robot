@@ -175,18 +175,23 @@
         video.load();
 
         let userInteracted = false;
+        let audioUnlocked = false;
         function onUserGesture() {
             userInteracted = true;
-            tryEnableAudio();
+            audioUnlocked = true; // remember intent; DO NOT start playback now
+            // If video is already showing, we can try to unmute.
+            if (videoWrapper.style.display === 'block') {
+                tryEnableAudio();
+            }
         }
 
         function tryEnableAudio() {
-            if (!userInteracted) return;
-            // Browser policy: allow audio only after a user gesture.
+            if (!audioUnlocked) return;
+            // Unmute only when video is actually on screen.
             video.muted = false;
             video.volume = 1;
+            // Some browsers require a play() call after unmute.
             video.play().catch(() => {});
-            // hide overlay once we’ve attempted unmute after gesture
             audioOverlay.style.display = 'none';
         }
 
@@ -196,6 +201,7 @@
         }
 
         function syncAndPlayVideo(payload) {
+            console.log('play-video payload', payload);
             const nowMs = payload?.nowMs ?? Date.now();
             const startAtMs = payload?.videoStartAtMs ?? null;
             const elapsedSec = (startAtMs ? Math.max(0, (nowMs - startAtMs) / 1000) : 0);
@@ -210,7 +216,7 @@
             video.muted = true;
             try { video.currentTime = elapsedSec; } catch (_) {}
             video.play().catch(e => console.error(e));
-            // if user already tapped earlier, we can unmute right away
+            // If user already tapped earlier, attempt unmute (may still require another tap)
             tryEnableAudio();
             updateAudioOverlay();
         }
