@@ -25,7 +25,7 @@
         <h1>SCANEAZĂ PENTRU A INTRĂ ÎN ARENĂ</h1>
     </div>
     <div class="blackout" id="blackout"></div>
-    <div class="video-wrapper" id="videoWrapper"><video id="eventVideo" preload="auto" playsinline muted></video></div>
+    <div class="video-wrapper" id="videoWrapper"><video id="eventVideo" preload="auto" playsinline></video></div>
 
     <script>
         const socket = io();
@@ -43,15 +43,18 @@
         video.src = '/0501.mp4';
         video.load();
 
-        function showVideo() {
+        function showVideo(data) {
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            video.play().then(()=> setTimeout(()=> video.muted=false, 100)).catch(e=>console.log);
+            if (data && data.time !== undefined) {
+                video.currentTime = data.time;
+            }
+            video.play().catch(e=>console.log);
         }
 
         socket.on('sync-state', (state) => {
             if (state.blackout) { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; }
-            if (state.videoPlaying) showVideo();
+            if (state.videoPlaying) showVideo({ time: state.videoTime });
         });
         socket.on('blackout', () => { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; });
         socket.on('play-video', showVideo);
