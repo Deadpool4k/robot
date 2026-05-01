@@ -2,7 +2,7 @@
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Arena - Proiector</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
@@ -15,12 +15,13 @@
         
         body {
             background: #000;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: 'Courier New', monospace;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
+            font-family: 'Courier New', monospace;
         }
         
         .container {
@@ -108,10 +109,8 @@
     <script>
         const socket = io();
         
-        // Register as projector
         socket.emit('register', 'projector');
         
-        // Generate QR code linking to /client
         fetch('/api/qr-data')
             .then(res => res.json())
             .then(data => {
@@ -128,45 +127,34 @@
                 });
             });
         
-        // Get video elements
         const videoWrapper = document.getElementById('videoWrapper');
         const video = document.getElementById('eventVideo');
         const blackoutDiv = document.getElementById('blackout');
         const appContainer = document.querySelector('.container');
         
-        // Set video source
         video.src = '/0501.mp4';
         video.load();
         
-        // Listen for blackout
         socket.on('blackout', () => {
             console.log('Blackout received');
-            // Hide main UI
             appContainer.classList.add('hidden');
-            // Show blackout overlay
             blackoutDiv.style.display = 'block';
         });
         
-        // Listen for play video
         socket.on('play-video', () => {
             console.log('Play video signal received');
-            // Hide blackout
             blackoutDiv.style.display = 'none';
-            // Show video wrapper
             videoWrapper.style.display = 'block';
             
-            // Attempt to play video
             const playPromise = video.play();
             if (playPromise !== undefined) {
                 playPromise.then(() => {
                     console.log('Video playing');
-                    // Unmute after play starts
                     setTimeout(() => {
                         video.muted = false;
                     }, 100);
                 }).catch(err => {
                     console.error('Play error:', err);
-                    // Retry with user interaction simulation
                     document.body.click();
                     setTimeout(() => {
                         video.muted = false;
@@ -176,8 +164,15 @@
             }
         });
         
-        // Preload readiness
+        // Fullscreen on any click/touch
+        document.body.addEventListener('click', function() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            }
+        });
+        
         console.log('Projector ready');
     </script>
 </body>
-</html> 
+</html>
