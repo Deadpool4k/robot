@@ -147,7 +147,7 @@
     </div>
     
     <script>
-        // ==================== DOODLE JUMP GAME (multe glitch-uri) ====================
+        // ==================== DOODLE JUMP GAME ====================
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
@@ -344,7 +344,7 @@
             requestAnimationFrame(gameLoop);
         }
         
-        // ==================== MULTE GLITCH-URI ====================
+        // ==================== GLITCH-URI (fără platforms disappear) ====================
         function startGlitchEffects() {
             glitchInterval = setInterval(() => {
                 if (!gameRunning) return;
@@ -403,16 +403,7 @@
                     setTimeout(() => container.style.transform = '', 100);
                 }
                 
-                // 7. PLATFORMS DISAPPEAR
-                if (rand < 0.12) {
-                    const originalPlatforms = [...platforms];
-                    platforms = [];
-                    setTimeout(() => {
-                        platforms = originalPlatforms;
-                    }, 500);
-                }
-                
-                // 8. FAKE TEXT ARTIFACT
+                // 7. FAKE TEXT ARTIFACT
                 if (rand < 0.2) {
                     const artifact = document.createElement('div');
                     const messages = ['⚠️ SISTEM CORUPT ⚠️', '█▓▒░ HACKED ░▒▓█', 'ERROR 0xFFFF', '>> GLITCH MODE <<'];
