@@ -14,9 +14,6 @@
         .controls-hint { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.5); padding: 10px; font-size: 14px; z-index: 10; }
         .video-wrapper { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 1000; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .audio-overlay { position: fixed; inset: 0; display: none; z-index: 1100; background: rgba(0,0,0,0.55); color: #fff;
-            font-family: 'Courier New', monospace; align-items: center; justify-content: center; text-align: center; padding: 24px; }
-        .audio-overlay .btn { margin-top: 16px; display: inline-block; background: #fff; color: #000; padding: 14px 18px; border-radius: 14px; font-weight: 700; }
         .blackout { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 999; display: none; }
         .glitch-shake { animation: shake 0.1s infinite; }
         @keyframes shake { 0% { transform: translate(0,0); } 25% { transform: translate(-3px,2px); } 50% { transform: translate(3px,-2px); } 75% { transform: translate(-2px,3px); } 100% { transform: translate(2px,-3px); } }
@@ -34,14 +31,7 @@
     </div>
     <div class="blackout" id="blackout"></div>
     <div class="video-wrapper" id="videoWrapper">
-        <video id="eventVideo" preload="auto" playsinline webkit-playsinline muted autoplay></video>
-    </div>
-    <div class="audio-overlay" id="audioOverlay">
-        <div>
-            <div style="font-size:20px;font-weight:700;">ACTIVEAZĂ SUNETUL</div>
-            <div style="opacity:0.85;margin-top:8px;">Unele telefoane blochează sunetul până la un tap.</div>
-            <div class="btn">TAP PENTRU SUNET</div>
-        </div>
+        <video id="eventVideo" preload="auto" playsinline muted></video>
     </div>
 
     <script>
@@ -166,68 +156,9 @@
         const videoWrapper = document.getElementById('videoWrapper');
         const blackoutDiv = document.getElementById('blackout');
         const gameDiv = document.getElementById('gameContainer');
-        const audioOverlay = document.getElementById('audioOverlay');
 
         video.src = '/0501.mp4';
-        video.playsInline = true;
-        video.muted = true;
-        video.autoplay = true;
         video.load();
-
-        let userInteracted = false;
-        let audioUnlocked = false;
-        function onUserGesture() {
-            userInteracted = true;
-            audioUnlocked = true; // remember intent; DO NOT start playback now
-            // If video is already showing, we can try to unmute.
-            if (videoWrapper.style.display === 'block') {
-                tryEnableAudio();
-            }
-        }
-
-        function tryEnableAudio() {
-            if (!audioUnlocked) return;
-            // Unmute only when video is actually on screen.
-            video.muted = false;
-            video.volume = 1;
-            // Some browsers require a play() call after unmute.
-            video.play().catch(() => {});
-            audioOverlay.style.display = 'none';
-        }
-
-        function updateAudioOverlay() {
-            const shouldShow = videoWrapper.style.display === 'block' && video.muted;
-            audioOverlay.style.display = shouldShow ? 'flex' : 'none';
-        }
-
-        function syncAndPlayVideo(payload) {
-            console.log('play-video payload', payload);
-            const nowMs = payload?.nowMs ?? Date.now();
-            const startAtMs = payload?.videoStartAtMs ?? null;
-            const elapsedSec = (startAtMs ? Math.max(0, (nowMs - startAtMs) / 1000) : 0);
-
-            blackoutDiv.style.display = 'none';
-            gameDiv.style.display = 'none';
-            gameRunning = false;
-            videoWrapper.style.display = 'block';
-            updateAudioOverlay();
-
-            // iOS/Android: autoplay works reliably only while muted.
-            video.muted = true;
-            try { video.currentTime = elapsedSec; } catch (_) {}
-            video.play().catch(e => console.error(e));
-            // If user already tapped earlier, attempt unmute (may still require another tap)
-            tryEnableAudio();
-            updateAudioOverlay();
-        }
-
-        video.addEventListener('error', () => {
-            const err = video.error;
-            console.error('Video error', err);
-            // Basic on-screen hint so it’s not “blank”
-            blackoutDiv.style.display = 'block';
-            blackoutDiv.innerHTML = '<div style="color:#fff;font-family:Courier New, monospace;display:flex;align-items:center;justify-content:center;height:100%;text-align:center;padding:20px;">VIDEO NU POATE FI ÎNCĂRCAT.<br>Verifică dacă <b>/0501.mp4</b> există în <b>public/</b>.</div>';
-        });
 
         socket.on('sync-state', (state) => {
             if (state.blackout) {
@@ -236,7 +167,9 @@
                 gameRunning = false;
             }
             if (state.videoPlaying) {
-                syncAndPlayVideo(state);
+                blackoutDiv.style.display = 'none';
+                videoWrapper.style.display = 'block';
+                video.play().then(() => { setTimeout(() => video.muted = false, 100); }).catch(e => console.log);
             }
         });
 
@@ -246,8 +179,10 @@
             gameRunning = false;
         });
 
-        socket.on('play-video', (payload) => {
-            syncAndPlayVideo(payload);
+        socket.on('play-video', () => {
+            blackoutDiv.style.display = 'none';
+            videoWrapper.style.display = 'block';
+            video.play().then(() => { setTimeout(() => video.muted = false, 100); }).catch(e => console.log);
         });
 
         socket.on('restart', () => {
@@ -256,21 +191,14 @@
             gameDiv.style.display = 'block';
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'none';
-            audioOverlay.style.display = 'none';
             video.pause();
             video.currentTime = 0;
-            video.muted = true;
             initGame();
         });
 
-        audioOverlay.addEventListener('click', () => { onUserGesture(); }, { passive: true });
-        video.addEventListener('volumechange', updateAudioOverlay);
-        video.addEventListener('play', updateAudioOverlay);
-        video.addEventListener('pause', updateAudioOverlay);
-
-        function goFull() { document.documentElement.requestFullscreen().catch(() => {}); }
-        document.body.addEventListener('click', () => { onUserGesture(); goFull(); }, { passive: true });
-        document.body.addEventListener('touchstart', () => { onUserGesture(); goFull(); }, { passive: true });
+        function goFull() { document.documentElement.requestFullscreen(); }
+        document.body.addEventListener('click', goFull);
+        document.body.addEventListener('touchstart', goFull);
 
         resize();
         window.addEventListener('resize', resize);
