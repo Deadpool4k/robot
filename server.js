@@ -7,14 +7,12 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Behind Railway/any reverse proxy, this enables correct protocol/host detection
-// (e.g. x-forwarded-proto: https) for QR URLs and avoids mixed-content issues.
 app.set('trust proxy', true);
-
 app.use(express.static(path.join(__dirname, 'public')));
 
 let globalBlackout = false;
 let globalVideoPlaying = false;
+let globalVideoStartTime = null;  // ← nou: momentul când a început video-ul (ms)
 
 const clients = {
   projectors: new Set(),
@@ -31,7 +29,6 @@ const getClientUrl = (req) => {
 };
 
 app.get('/health', (_req, res) => res.status(200).send('ok'));
-
 app.get('/', (req, res) => res.redirect('/projector'));
 app.get('/projector', (req, res) => res.sendFile(path.join(__dirname, 'public', 'projector.html')));
 app.get('/client', (req, res) => res.sendFile(path.join(__dirname, 'public', 'client.html')));
@@ -53,16 +50,25 @@ io.on('connection', (socket) => {
 
     if (type === 'projector') {
       clients.projectors.add(socket);
-      socket.emit('sync-state', { blackout: globalBlackout, videoPlaying: globalVideoPlaying });
-      if (globalVideoPlaying) socket.emit('play-video');
+      const elapsed = globalVideoStartTime ? (Date.now() - globalVideoStartTime) / 1000 : 0;
+      socket.emit('sync-state', { 
+        blackout: globalBlackout, 
+        videoPlaying: globalVideoPlaying,
+        videoTime: elapsed
+      });
+      if (globalVideoPlaying) socket.emit('play-video', { time: elapsed });
     } else if (type === 'client') {
       clients.clients.add(socket);
-      socket.emit('sync-state', { blackout: globalBlackout, videoPlaying: globalVideoPlaying });
-      if (globalVideoPlaying) socket.emit('play-video');
+      const elapsed = globalVideoStartTime ? (Date.now() - globalVideoStartTime) / 1000 : 0;
+      socket.emit('sync-state', { 
+        blackout: globalBlackout, 
+        videoPlaying: globalVideoPlaying,
+        videoTime: elapsed
+      });
+      if (globalVideoPlaying) socket.emit('play-video', { time: elapsed });
     } else if (type === 'admin') {
       clients.admins.add(socket);
     }
-
     console.log(`Projectors: ${clients.projectors.size}, Clients: ${clients.clients.size}`);
   });
 
@@ -72,19 +78,21 @@ io.on('connection', (socket) => {
     targets.forEach(c => c.emit('blackout'));
     globalBlackout = true;
     globalVideoPlaying = false;
+    globalVideoStartTime = null;
 
     setTimeout(() => {
-      targets.forEach(c => c.emit('play-video'));
+      globalVideoStartTime = Date.now();
       globalVideoPlaying = true;
+      const elapsed = 0;
+      targets.forEach(c => c.emit('play-video', { time: elapsed }));
     }, 2000);
   });
 
   socket.on('restart', () => {
-    console.log('RESTART - resetare stare');
+    console.log('RESTART');
     globalBlackout = false;
     globalVideoPlaying = false;
-
-    // Trimite restart la toate dispozitivele
+    globalVideoStartTime = null;
     const all = [...clients.projectors, ...clients.clients];
     all.forEach(c => c.emit('restart'));
   });

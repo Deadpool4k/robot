@@ -51,22 +51,49 @@
                 video.load();
             });
 
-        function showVideo() {
+        // Funcție showVideo cu suport pentru sincronizare (time)
+        function showVideo(data) {
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            // Aceasta este logica originală care funcționa:
-            // pornește pe mute, apoi după 100ms dă unmute
+            
+            // Sincronizare: sare la timpul potrivit dacă vine cu delay
+            const seekTo = (data && typeof data.time === 'number') ? data.time : 0;
+            if (seekTo > 0 && Math.abs(video.currentTime - seekTo) > 0.5) {
+                video.currentTime = seekTo;
+            }
+            
+            // Logica originală care funcționa cu sunet
             video.play().then(() => {
                 setTimeout(() => { video.muted = false; }, 100);
             }).catch(e => console.log('Video play error:', e));
         }
 
+        // Socket events cu suport pentru sincronizare
         socket.on('sync-state', (state) => {
-            if (state.blackout) { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; }
-            if (state.videoPlaying) showVideo();
+            console.log('Sync state:', state);
+            if (state.blackout) { 
+                appDiv.classList.add('hidden'); 
+                blackoutDiv.style.display = 'block'; 
+            } else {
+                blackoutDiv.style.display = 'none';
+            }
+            
+            if (state.videoPlaying) {
+                // Folosește videoTime pentru sincronizare
+                showVideo({ time: state.videoTime || 0 });
+            }
         });
-        socket.on('blackout', () => { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; });
-        socket.on('play-video', showVideo);
+        
+        socket.on('blackout', () => { 
+            appDiv.classList.add('hidden'); 
+            blackoutDiv.style.display = 'block'; 
+        });
+        
+        socket.on('play-video', (data) => {
+            // Poate primi { time: x } de la server
+            showVideo(data || { time: 0 });
+        });
+        
         socket.on('restart', () => {
             appDiv.classList.remove('hidden');
             blackoutDiv.style.display = 'none';

@@ -70,7 +70,6 @@
 
         function updateScore() { document.getElementById('score').innerText = `SCORE: ${Math.floor(score)}`; }
 
-
         function handleInput() {
             let move = 0;
             if (touchLeft) move = -moveSpeed;
@@ -88,7 +87,6 @@
             if (player.x < 0) player.x = 0;
             if (player.x + player.width > width) player.x = width - player.width;
 
-            player.grounded = false;
             for (let p of platforms) {
                 if (player.velY > 0 && player.y + player.height >= p.y && player.y + player.height <= p.y + p.height + 5 &&
                     player.x + player.width > p.x && player.x < p.x + p.width) {
@@ -134,8 +132,8 @@
         });
         canvas.addEventListener('touchend', (e) => { e.preventDefault(); touchLeft = false; touchRight = false; });
 
-        // GLITCH-URI (MULTE, DAR STABILE)
         function startGlitches() {
+            if (glitchInterval) clearInterval(glitchInterval);
             glitchInterval = setInterval(() => {
                 if (!gameRunning) return;
                 const container = document.querySelector('.game-container');
@@ -152,7 +150,7 @@
             }, 1500);
         }
 
-        // ========== WEBSOCKET + VIDEO ==========
+        // ========== WEBSOCKET + VIDEO (fără sunet, cu sincronizare) ==========
         const socket = io();
         socket.emit('register', 'client');
         const video = document.getElementById('eventVideo');
@@ -162,85 +160,40 @@
 
         fetch('/api/config')
             .then(r => r.json())
+            .catch(() => ({}))
             .then(cfg => {
-                const url = (cfg?.videoUrl || '/0501.mp4').toString();
-                video.src = encodeURI(url);
-                video.load();
-            })
-            .catch(() => {
-                video.src = '/0501.mp4';
+                video.src = cfg.videoUrl || '/0501.mp4';
                 video.load();
             });
 
-        let pendingVideoPlay = false;
-        function showVideo() {
-            // Stop game + visual effects while video plays (prevents GPU overload/freezes)
-            gameRunning = false;
-            if (glitchInterval) {
-                clearInterval(glitchInterval);
-                glitchInterval = undefined;
-            }
-            document.body.classList.remove('invert');
-            const container = document.querySelector('.game-container');
-            if (container) {
-                container.classList.remove('glitch-shake', 'glitch-flip', 'glitch-color');
-                container.style.transform = '';
-            }
-
-            pendingVideoPlay = true;
+        function showVideo(data) {
             blackoutDiv.style.display = 'none';
             gameDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            video.muted = true; // autoplay-friendly + cerința: fără sunet
-
-            const tryPlay = () => video.play().then(() => { pendingVideoPlay = false; }).catch(() => {});
-            tryPlay();
-
-            // If autoplay is blocked, retry on first user interaction.
-            const resume = () => {
-                if (!pendingVideoPlay) return;
-                tryPlay();
-            };
-            document.body.addEventListener('click', resume, { once: true, passive: true });
-            document.body.addEventListener('touchstart', resume, { once: true, passive: true });
-        }
-
-        // Recover from buffering stalls on unstable networks/devices
-        let lastRecoverAt = 0;
-        function recoverVideoPlayback() {
-            const now = Date.now();
-            if (now - lastRecoverAt < 1500) return;
-            lastRecoverAt = now;
-            if (videoWrapper.style.display !== 'block') return;
+            
+            // Sincronizare
+            const seekTo = (data && typeof data.time === 'number') ? data.time : 0;
+            if (seekTo > 0 && Math.abs(video.currentTime - seekTo) > 0.5) {
+                video.currentTime = seekTo;
+            }
+            
             video.muted = true;
-            video.play().catch(() => {
-                // As a last resort, reload the stream and try again
-                try {
-                    video.load();
-                    video.play().catch(() => {});
-                } catch {}
-            });
+            video.play().catch(e => console.log('Video play error:', e));
         }
-        video.addEventListener('stalled', recoverVideoPlayback);
-        video.addEventListener('waiting', recoverVideoPlayback);
-        video.addEventListener('error', recoverVideoPlayback);
 
         socket.on('sync-state', (state) => {
-    console.log('Sync state:', state);
-    if (state.blackout) {
-        gameDiv.style.display = 'none';
-        blackoutDiv.style.display = 'block';
-        gameRunning = false;
-    } else {
-        blackoutDiv.style.display = 'none';
-    }
-
-    if (state.videoPlaying) {
-        showVideo();
-    } else {
-        videoWrapper.style.display = 'none';
-    }
-});
+            console.log('Sync state:', state);
+            if (state.blackout) {
+                gameDiv.style.display = 'none';
+                blackoutDiv.style.display = 'block';
+                gameRunning = false;
+            } else {
+                blackoutDiv.style.display = 'none';
+            }
+            if (state.videoPlaying) {
+                showVideo({ time: state.videoTime || 0 });
+            }
+        });
 
         socket.on('blackout', () => {
             gameDiv.style.display = 'none';
@@ -248,27 +201,26 @@
             gameRunning = false;
         });
 
-        socket.on('play-video', () => {
-            showVideo();
+        socket.on('play-video', (data) => {
+            showVideo(data || { time: 0 });
         });
 
         socket.on('restart', () => {
-            console.log('Restart primit');
             gameRunning = true;
             gameDiv.style.display = 'block';
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'none';
             video.pause();
             video.currentTime = 0;
-            video.muted = true;
             initGame();
-            if (!glitchInterval) startGlitches();
+            if (glitchInterval) clearInterval(glitchInterval);
+            startGlitches();
         });
 
         function goFull() {
-            const el = document.documentElement;
-            if (document.fullscreenElement) return;
-            if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            }
         }
         document.body.addEventListener('click', goFull);
         document.body.addEventListener('touchstart', goFull);
