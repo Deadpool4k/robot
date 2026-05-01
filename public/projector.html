@@ -46,12 +46,25 @@
         function showVideo() {
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            video.play().then(()=> setTimeout(()=> video.muted=false, 100)).catch(e=>console.log);
+            video.play()
+                .then(() => setTimeout(() => video.muted = false, 100))
+                .catch(e => console.log(e));
         }
 
         socket.on('sync-state', (state) => {
-            if (state.blackout) { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; }
-            if (state.videoPlaying) showVideo();
+            if (state.blackout) {
+                appDiv.classList.add('hidden');
+                blackoutDiv.style.display = 'block';
+            } else {
+                blackoutDiv.style.display = 'none';
+            }
+
+            if (state.videoPlaying) {
+                appDiv.classList.add('hidden');
+                showVideo();
+            } else {
+                videoWrapper.style.display = 'none';
+            }
         });
         socket.on('blackout', () => { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; });
         socket.on('play-video', showVideo);
@@ -63,7 +76,11 @@
             video.currentTime = 0;
         });
 
-        document.body.addEventListener('click', ()=> document.documentElement.requestFullscreen());
+        document.body.addEventListener('click', () => {
+            const el = document.documentElement;
+            if (document.fullscreenElement) return;
+            if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+        });
     </script>
 </body>
 </html>

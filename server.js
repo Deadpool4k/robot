@@ -2,7 +2,6 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
-const QRCode = require('qrcode');
 
 const app = express();
 const server = http.createServer(app);

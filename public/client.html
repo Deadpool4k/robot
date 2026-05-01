@@ -70,6 +70,7 @@
 
         function updateScore() { document.getElementById('score').innerText = `SCORE: ${Math.floor(score)}`; }
 
+
         function handleInput() {
             let move = 0;
             if (touchLeft) move = -moveSpeed;
@@ -144,14 +145,16 @@
                 if (rand < 0.25) { controlInverted = true; setTimeout(() => controlInverted = false, 2000); }
                 if (rand < 0.2) { container.classList.add('glitch-flip'); setTimeout(() => container.classList.remove('glitch-flip'), 300); }
                 if (rand < 0.25) { container.classList.add('glitch-color'); setTimeout(() => container.classList.remove('glitch-color'), 300); }
-                if (rand < 0.15) { container.style.transform = `translate(${Math.random()*20-10}px,${Math.random()*20-10}px)`; setTimeout(() => container.style.transform = '', 100); }
+                if (rand < 0.15) {
+                    container.style.transform = `translate(${Math.random() * 20 - 10}px, ${Math.random() * 20 - 10}px)`;
+                    setTimeout(() => container.style.transform = '', 100);
+                }
             }, 1500);
         }
 
         // ========== WEBSOCKET + VIDEO ==========
         const socket = io();
         socket.emit('register', 'client');
-
         const video = document.getElementById('eventVideo');
         const videoWrapper = document.getElementById('videoWrapper');
         const blackoutDiv = document.getElementById('blackout');
@@ -165,11 +168,19 @@
                 gameDiv.style.display = 'none';
                 blackoutDiv.style.display = 'block';
                 gameRunning = false;
+            } else {
+                blackoutDiv.style.display = 'none';
             }
+
             if (state.videoPlaying) {
+                gameDiv.style.display = 'none';
                 blackoutDiv.style.display = 'none';
                 videoWrapper.style.display = 'block';
-                video.play().then(() => { setTimeout(() => video.muted = false, 100); }).catch(e => console.log);
+                video.play()
+                    .then(() => { setTimeout(() => video.muted = false, 100); })
+                    .catch(e => console.log(e));
+            } else {
+                videoWrapper.style.display = 'none';
             }
         });
 
@@ -181,8 +192,11 @@
 
         socket.on('play-video', () => {
             blackoutDiv.style.display = 'none';
+            gameDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            video.play().then(() => { setTimeout(() => video.muted = false, 100); }).catch(e => console.log);
+            video.play()
+                .then(() => { setTimeout(() => video.muted = false, 100); })
+                .catch(e => console.log(e));
         });
 
         socket.on('restart', () => {
@@ -196,7 +210,11 @@
             initGame();
         });
 
-        function goFull() { document.documentElement.requestFullscreen(); }
+        function goFull() {
+            const el = document.documentElement;
+            if (document.fullscreenElement) return;
+            if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+        }
         document.body.addEventListener('click', goFull);
         document.body.addEventListener('touchstart', goFull);
 
