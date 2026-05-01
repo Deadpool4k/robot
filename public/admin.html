@@ -3,33 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin</title>
+    <title>Arena - Admin</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: monospace; }
-        .panel { background: #222; padding: 40px; border-radius: 20px; text-align: center; }
-        button { background: red; color: white; border: none; padding: 20px 40px; font-size: 20px; margin: 10px; cursor: pointer; border-radius: 50px; }
-        .restart { background: #444; }
+        body { background: #0a0a0a; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: 'Courier New', monospace; }
+        .panel { background: #111; padding: 40px; border-radius: 20px; text-align: center; }
+        button { background: #ff0000; color: white; border: none; padding: 20px 40px; font-size: 1.5rem; font-weight: bold; border-radius: 60px; cursor: pointer; margin: 10px; width: 250px; }
+        .restart { background: #333; }
         .status { color: #0f0; margin-bottom: 20px; }
     </style>
 </head>
 <body>
     <div class="panel">
-        <h1 style="color:red">CONTROL ARENA</h1>
-        <div class="status" id="status">🟢 CONECTAT</div>
-        <button id="start">▶ START</button>
-        <button id="restart" class="restart">⟳ RESTART</button>
+        <h1 style="color:#ff3333">⚡ CONTROL ARENA ⚡</h1>
+        <div class="status" id="status">🔌 CONECTAT</div>
+        <button id="startBtn">▶ START SEQUENCE</button>
+        <button id="restartBtn" class="restart">⟳ RESTART JOC</button>
     </div>
     <script>
         const socket = io();
         socket.emit('register', 'admin');
-        socket.on('connect', () => document.getElementById('status').innerHTML = '🟢 CONECTAT');
-        
-        document.getElementById('start').onclick = () => {
-            if(confirm('START BLACKOUT + VIDEO?')) socket.emit('start');
+        socket.on('connect', () => document.getElementById('status').innerHTML = '✅ CONECTAT');
+
+        document.getElementById('startBtn').onclick = () => {
+            if (confirm('START? Blackout + video pe toate ecranele.')) {
+                socket.emit('start-sequence');
+                document.getElementById('startBtn').disabled = true;
+                setTimeout(() => document.getElementById('startBtn').disabled = false, 10000);
+            }
         };
-        document.getElementById('restart').onclick = () => {
-            if(confirm('RESTART TOTUL?')) socket.emit('restart');
+        document.getElementById('restartBtn').onclick = () => {
+            if (confirm('RESTART? Se resetează totul (QR, joc, video).')) {
+                socket.emit('restart');
+            }
         };
     </script>
 </body>
