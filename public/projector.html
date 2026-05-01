@@ -103,7 +103,7 @@
     
     <div class="blackout" id="blackout"></div>
     <div class="video-wrapper" id="videoWrapper">
-        <video id="eventVideo" preload="auto" muted></video>
+        <video id="eventVideo" preload="auto" muted playsinline></video>
     </div>
     
     <script>
@@ -135,6 +135,27 @@
         video.src = '/0501.mp4';
         video.load();
         
+        // Preload video
+        video.play().then(() => {
+            video.pause();
+            video.currentTime = 0;
+        }).catch(e => console.log('Preload:', e));
+        
+        socket.on('sync-state', (state) => {
+            console.log('Sync state:', state);
+            if (state.isBlackout) {
+                appContainer.classList.add('hidden');
+                blackoutDiv.style.display = 'block';
+            }
+            if (state.isVideoPlaying) {
+                blackoutDiv.style.display = 'none';
+                videoWrapper.style.display = 'block';
+                video.play().then(() => {
+                    setTimeout(() => { video.muted = false; }, 100);
+                }).catch(e => console.error('Video error:', e));
+            }
+        });
+        
         socket.on('blackout', () => {
             console.log('Blackout received');
             appContainer.classList.add('hidden');
@@ -146,30 +167,22 @@
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
             
-            const playPromise = video.play();
-            if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    console.log('Video playing');
-                    setTimeout(() => {
-                        video.muted = false;
-                    }, 100);
-                }).catch(err => {
-                    console.error('Play error:', err);
-                    document.body.click();
-                    setTimeout(() => {
-                        video.muted = false;
-                        video.play();
-                    }, 100);
-                });
-            }
+            video.play().then(() => {
+                setTimeout(() => { video.muted = false; }, 100);
+            }).catch(err => {
+                console.error('Play error:', err);
+                document.body.click();
+                setTimeout(() => {
+                    video.muted = false;
+                    video.play();
+                }, 100);
+            });
         });
         
-        // Fullscreen on any click/touch
+        // Fullscreen
         document.body.addEventListener('click', function() {
             const elem = document.documentElement;
-            if (elem.requestFullscreen) {
-                elem.requestFullscreen();
-            }
+            if (elem.requestFullscreen) elem.requestFullscreen();
         });
         
         console.log('Projector ready');
