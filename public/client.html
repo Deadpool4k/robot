@@ -100,29 +100,6 @@
             display: none;
         }
         
-        /* Buton activare sunet - în colțul dreapta jos, aproape invizibil */
-        .sound-activator {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(0,0,0,0.15);
-            color: rgba(255,255,255,0.2);
-            padding: 8px 12px;
-            font-size: 10px;
-            font-family: monospace;
-            z-index: 10000;
-            cursor: pointer;
-            border-radius: 20px;
-            backdrop-filter: blur(2px);
-            transition: all 0.3s ease;
-        }
-        
-        .sound-activator:hover {
-            background: rgba(0,0,0,0.3);
-            color: rgba(255,255,255,0.4);
-        }
-        
-        /* Glitch effects */
         .glitch-shake {
             animation: glitch-shake 0.1s infinite;
         }
@@ -158,9 +135,6 @@
     </style>
 </head>
 <body>
-    <!-- Buton invizibil pentru activare sunet -->
-    <div id="soundActivator" class="sound-activator">🔇 activare sunet</div>
-    
     <div class="game-container" id="gameContainer">
         <div class="score-board" id="score">SCORE: 0</div>
         <canvas id="gameCanvas"></canvas>
@@ -169,30 +143,11 @@
     
     <div class="blackout" id="blackout"></div>
     <div class="video-wrapper" id="videoWrapper">
-        <video id="eventVideo" preload="auto" playsinline></video>
+        <video id="eventVideo" preload="auto" muted playsinline></video>
     </div>
     
     <script>
-        // ==================== ACTIVARE SUNET ====================
-        let soundActivated = false;
-        const soundBtn = document.getElementById('soundActivator');
-        const video = document.getElementById('eventVideo');
-        
-        soundBtn.addEventListener('click', () => {
-            soundActivated = true;
-            // Activează sunetul pe video
-            video.muted = false;
-            // Încearcă să pornească video pe mute ca să deblocheze
-            video.play().then(() => {
-                video.pause();
-                video.currentTime = 0;
-            }).catch(e => console.log('Pre-play error:', e));
-            // Ascunde butonul complet
-            soundBtn.style.display = 'none';
-            console.log('Sunet activat de utilizator');
-        });
-        
-        // ==================== DOODLE JUMP GAME ====================
+        // ==================== DOODLE JUMP GAME (multe glitch-uri) ====================
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
@@ -389,7 +344,7 @@
             requestAnimationFrame(gameLoop);
         }
         
-        // ==================== GLITCH-URI ====================
+        // ==================== MULTE GLITCH-URI ====================
         function startGlitchEffects() {
             glitchInterval = setInterval(() => {
                 if (!gameRunning) return;
@@ -397,16 +352,19 @@
                 const container = document.querySelector('.game-container');
                 const rand = Math.random();
                 
+                // 1. SHAKE
                 if (rand < 0.4) {
                     container.classList.add('glitch-shake');
                     setTimeout(() => container.classList.remove('glitch-shake'), 200);
                 }
                 
+                // 2. COLOR INVERSION
                 if (rand < 0.3) {
                     document.body.classList.add('invert');
                     setTimeout(() => document.body.classList.remove('invert'), 400);
                 }
                 
+                // 3. CONTROL INVERSION
                 if (rand < 0.25) {
                     controlInverted = true;
                     const artifact = document.createElement('div');
@@ -427,21 +385,25 @@
                     setTimeout(() => { controlInverted = false; }, 2000);
                 }
                 
+                // 4. FLIP (sus-jos)
                 if (rand < 0.2) {
                     container.classList.add('glitch-flip');
                     setTimeout(() => container.classList.remove('glitch-flip'), 300);
                 }
                 
+                // 5. COLOR CYCLE
                 if (rand < 0.25) {
                     container.classList.add('glitch-color');
                     setTimeout(() => container.classList.remove('glitch-color'), 300);
                 }
                 
+                // 6. POSITION GLITCH
                 if (rand < 0.15) {
                     container.style.transform = `translate(${Math.random() * 20 - 10}px, ${Math.random() * 20 - 10}px)`;
                     setTimeout(() => container.style.transform = '', 100);
                 }
                 
+                // 7. PLATFORMS DISAPPEAR
                 if (rand < 0.12) {
                     const originalPlatforms = [...platforms];
                     platforms = [];
@@ -450,6 +412,7 @@
                     }, 500);
                 }
                 
+                // 8. FAKE TEXT ARTIFACT
                 if (rand < 0.2) {
                     const artifact = document.createElement('div');
                     const messages = ['⚠️ SISTEM CORUPT ⚠️', '█▓▒░ HACKED ░▒▓█', 'ERROR 0xFFFF', '>> GLITCH MODE <<'];
@@ -474,16 +437,23 @@
         socket.emit('register', 'client');
         
         const videoWrapper = document.getElementById('videoWrapper');
+        const video = document.getElementById('eventVideo');
         const blackoutDiv = document.getElementById('blackout');
         const gameContainer = document.getElementById('gameContainer');
         
         video.src = '/0501.mp4';
         video.load();
         
-        // Preîncărcare
         video.addEventListener('canplaythrough', () => {
             console.log('Video preloaded');
         });
+        
+        // Pre-play pentru a debloca politica browserului
+        video.play().then(() => {
+            video.pause();
+            video.currentTime = 0;
+            console.log('Video pre-played');
+        }).catch(e => console.log('Pre-play error:', e));
         
         socket.on('sync-state', (state) => {
             console.log('Sync state:', state);
@@ -496,12 +466,6 @@
                 blackoutDiv.style.display = 'none';
                 videoWrapper.style.display = 'block';
                 video.currentTime = 0;
-                // Dacă sunetul a fost activat, pornește normal; dacă nu, pornește fără sunet
-                if (soundActivated) {
-                    video.muted = false;
-                } else {
-                    video.muted = true;
-                }
                 video.play().catch(err => console.error('Video play error:', err));
             }
         });
@@ -517,16 +481,8 @@
             console.log('Playing video');
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            
             video.currentTime = 0;
-            if (soundActivated) {
-                video.muted = false;
-            } else {
-                video.muted = true;
-            }
-            video.play().catch(err => {
-                console.error('Auto-play error:', err);
-            });
+            video.play().catch(err => console.error('Auto-play error:', err));
         });
         
         // Fullscreen on any click/touch
@@ -540,7 +496,6 @@
         document.body.addEventListener('click', goFullscreen);
         document.body.addEventListener('touchstart', goFullscreen);
         
-        // Initialize game
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
         canvas.addEventListener('touchstart', handleTouchStart);
@@ -550,7 +505,7 @@
         gameLoop();
         startGlitchEffects();
         
-        console.log('Client ready - sunetul se activează din butonul din colț');
+        console.log('Client ready');
     </script>
 </body>
 </html>
