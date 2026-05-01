@@ -7,220 +7,200 @@
     <script src="/socket.io/socket.io.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
-        body { background: #000; position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', monospace; touch-action: manipulation; }
-        .game-container { width: 100%; height: 100%; position: relative; background: linear-gradient(to bottom, #87CEEB, #E0F6FF); overflow: hidden; }
-        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
-        .score-board { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 10px; font-size: 24px; font-weight: bold; z-index: 10; }
-        .controls-hint { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.5); padding: 10px; font-size: 14px; z-index: 10; }
-        .video-wrapper { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 1000; background: #000; }
+        body { background: #000; position: fixed; width: 100%; height: 100%; overflow: hidden; font-family: monospace; }
+        
+        .game-container { width: 100%; height: 100%; position: relative; background: linear-gradient(to bottom, #87CEEB, #E0F6FF); }
+        canvas { width: 100%; height: 100%; display: block; }
+        .score { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 10px; font-size: 24px; z-index: 10; }
+        .hint { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: white; background: rgba(0,0,0,0.5); padding: 10px; z-index: 10; }
+        
+        .video-wrapper, .blackout { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 1000; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        /* Pe telefon, robotul mai mic */
-        @media (max-width: 768px) {
-            video { object-fit: contain; background: #000; }
-        }
-        .blackout { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 999; display: none; }
-        .glitch-shake { animation: shake 0.1s infinite; }
+        .blackout { z-index: 999; }
+        
+        /* Glitch effects */
+        .shake { animation: shake 0.1s infinite; }
         @keyframes shake { 0% { transform: translate(0,0); } 25% { transform: translate(-3px,2px); } 50% { transform: translate(3px,-2px); } 75% { transform: translate(-2px,3px); } 100% { transform: translate(2px,-3px); } }
-        .glitch-flip { transform: scale(1, -1) !important; transition: transform 0.05s; }
-        .glitch-color { animation: color-cycle 0.2s infinite; }
-        @keyframes color-cycle { 0% { filter: hue-rotate(0deg); } 25% { filter: hue-rotate(90deg); } 50% { filter: hue-rotate(180deg); } 75% { filter: hue-rotate(270deg); } 100% { filter: hue-rotate(360deg); } }
+        .flip { transform: scale(1, -1) !important; }
         .invert { filter: invert(1); }
+        .color-cycle { animation: color-cycle 0.2s infinite; }
+        @keyframes color-cycle { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div class="game-container" id="gameContainer">
-        <div class="score-board" id="score">SCORE: 0</div>
-        <canvas id="gameCanvas"></canvas>
-        <div class="controls-hint">⬅️ STÂNGA | DREAPTA ➡️</div>
+    <div class="game-container" id="game">
+        <div class="score" id="score">SCORE: 0</div>
+        <canvas id="canvas"></canvas>
+        <div class="hint">⬅️ STÂNGA | DREAPTA ➡️</div>
     </div>
     <div class="blackout" id="blackout"></div>
     <div class="video-wrapper" id="videoWrapper">
-        <video id="eventVideo" preload="auto" playsinline></video>
+        <video id="video" preload="auto" playsinline></video>
     </div>
 
     <script>
         // ========== DOODLE JUMP ==========
-        const canvas = document.getElementById('gameCanvas');
+        const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        let width, height, score = 0, gameRunning = true;
-        let player = { x: 0, y: 0, width: 30, height: 30, velX: 0, velY: 0, gravity: 0.5, jumpPower: -14 };
+        let w, h, score = 0, running = true;
+        
+        let player = { x: 0, y: 0, w: 30, h: 30, vx: 0, vy: 0, gravity: 0.5, jump: -14 };
         let platforms = [];
-        let touchLeft = false, touchRight = false;
-        let moveSpeed = 8;
-        let controlInverted = false;
-        let glitchInterval;
-
+        let left = false, right = false;
+        let inverted = false;
+        
         function resize() {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-            initGame();
+            w = window.innerWidth;
+            h = window.innerHeight;
+            canvas.width = w;
+            canvas.height = h;
+            init();
         }
-
-        function initGame() {
-            player.width = Math.min(40, width * 0.1);
-            player.height = player.width;
-            player.x = width/2 - player.width/2;
-            player.y = height - 150;
-            player.velX = 0; player.velY = 0;
+        
+        function init() {
+            player.w = Math.min(40, w * 0.1);
+            player.h = player.w;
+            player.x = w/2 - player.w/2;
+            player.y = h - 150;
+            player.vx = 0;
+            player.vy = 0;
             score = 0;
-            updateScore();
+            document.getElementById('score').innerText = 'SCORE: 0';
             platforms = [];
-            for (let i = 0; i < Math.floor(height/70); i++) {
-                platforms.push({ x: Math.random() * (width - 60), y: height - 50 - i*70, width: 60, height: 15 });
+            for(let i = 0; i < Math.floor(h/70); i++) {
+                platforms.push({ x: Math.random() * (w - 60), y: h - 50 - i*70, w: 60, h: 15 });
             }
         }
-
-        function updateScore() { document.getElementById('score').innerText = `SCORE: ${Math.floor(score)}`; }
-
-        function handleInput() {
+        
+        function update() {
+            if(!running) return;
             let move = 0;
-            if (touchLeft) move = -moveSpeed;
-            if (touchRight) move = moveSpeed;
-            if (controlInverted) move = -move;
-            player.velX = move;
-        }
-
-        function updateGame() {
-            if (!gameRunning) return;
-            handleInput();
-            player.velY += player.gravity;
-            player.x += player.velX;
-            player.y += player.velY;
-            if (player.x < 0) player.x = 0;
-            if (player.x + player.width > width) player.x = width - player.width;
-
-            for (let p of platforms) {
-                if (player.velY > 0 && player.y + player.height >= p.y && player.y + player.height <= p.y + p.height + 5 &&
-                    player.x + player.width > p.x && player.x < p.x + p.width) {
-                    player.velY = player.jumpPower;
-                    player.y = p.y - player.height;
+            if(left) move = -8;
+            if(right) move = 8;
+            if(inverted) move = -move;
+            player.vx = move;
+            
+            player.vy += player.gravity;
+            player.x += player.vx;
+            player.y += player.vy;
+            
+            if(player.x < 0) player.x = 0;
+            if(player.x + player.w > w) player.x = w - player.w;
+            
+            for(let p of platforms) {
+                if(player.vy > 0 && player.y + player.h >= p.y && player.y + player.h <= p.y + p.h + 5 &&
+                    player.x + player.w > p.x && player.x < p.x + p.w) {
+                    player.vy = player.jump;
+                    player.y = p.y - player.h;
                 }
             }
-
-            if (player.y < height/3) {
-                let diff = height/3 - player.y;
+            
+            if(player.y < h/3) {
+                let diff = h/3 - player.y;
                 player.y += diff;
-                for (let p of platforms) p.y += diff;
+                for(let p of platforms) p.y += diff;
                 score += diff * 0.5;
-                updateScore();
+                document.getElementById('score').innerText = `SCORE: ${Math.floor(score)}`;
             }
-
-            if (platforms[platforms.length-1]?.y > 0) {
-                platforms.push({ x: Math.random() * (width - 60), y: -15, width: 60, height: 15 });
+            
+            if(platforms[platforms.length-1]?.y > 0) {
+                platforms.push({ x: Math.random() * (w - 60), y: -15, w: 60, h: 15 });
             }
-            platforms = platforms.filter(p => p.y < height);
-            if (player.y > height) { gameRunning = false; setTimeout(() => { initGame(); gameRunning = true; }, 1000); }
+            platforms = platforms.filter(p => p.y < h);
+            if(player.y > h) { running = false; setTimeout(() => { init(); running = true; }, 1000); }
         }
-
+        
         function draw() {
-            if (!ctx) return;
-            ctx.clearRect(0, 0, width, height);
-            let grad = ctx.createLinearGradient(0, 0, 0, height);
-            grad.addColorStop(0, '#87CEEB'); grad.addColorStop(1, '#E0F6FF');
-            ctx.fillStyle = grad; ctx.fillRect(0, 0, width, height);
+            ctx.clearRect(0, 0, w, h);
+            let grad = ctx.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, '#87CEEB');
+            grad.addColorStop(1, '#E0F6FF');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
             ctx.fillStyle = '#8B4513';
-            for (let p of platforms) ctx.fillRect(p.x, p.y, p.width, p.height);
+            for(let p of platforms) ctx.fillRect(p.x, p.y, p.w, p.h);
             ctx.fillStyle = '#FF4444';
-            ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.fillRect(player.x, player.y, player.w, player.h);
         }
-
-        function gameLoop() { updateGame(); draw(); requestAnimationFrame(gameLoop); }
-
+        
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             let cx = e.touches[0].clientX;
-            if (cx < width/2) { touchLeft = true; touchRight = false; }
-            else { touchRight = true; touchLeft = false; }
+            if(cx < w/2) { left = true; right = false; }
+            else { right = true; left = false; }
         });
-        canvas.addEventListener('touchend', (e) => { e.preventDefault(); touchLeft = false; touchRight = false; });
-
-        function startGlitches() {
-            glitchInterval = setInterval(() => {
-                if (!gameRunning) return;
-                const container = document.querySelector('.game-container');
-                const rand = Math.random();
-                if (rand < 0.4) { container.classList.add('glitch-shake'); setTimeout(() => container.classList.remove('glitch-shake'), 200); }
-                if (rand < 0.3) { document.body.classList.add('invert'); setTimeout(() => document.body.classList.remove('invert'), 400); }
-                if (rand < 0.25) { controlInverted = true; setTimeout(() => controlInverted = false, 2000); }
-                if (rand < 0.2) { container.classList.add('glitch-flip'); setTimeout(() => container.classList.remove('glitch-flip'), 300); }
-                if (rand < 0.25) { container.classList.add('glitch-color'); setTimeout(() => container.classList.remove('glitch-color'), 300); }
-                if (rand < 0.15) { container.style.transform = `translate(${Math.random()*20-10}px,${Math.random()*20-10}px)`; setTimeout(() => container.style.transform = '', 100); }
-            }, 1500);
-        }
-
-        // ========== WEBSOCKET + VIDEO (automat, sincronizat) ==========
+        canvas.addEventListener('touchend', (e) => { left = false; right = false; });
+        
+        // Glitches
+        setInterval(() => {
+            if(!running) return;
+            const game = document.getElementById('game');
+            let r = Math.random();
+            if(r < 0.3) { game.classList.add('shake'); setTimeout(() => game.classList.remove('shake'), 200); }
+            if(r < 0.2) { document.body.classList.add('invert'); setTimeout(() => document.body.classList.remove('invert'), 400); }
+            if(r < 0.2) { inverted = true; setTimeout(() => inverted = false, 2000); }
+            if(r < 0.15) { game.classList.add('flip'); setTimeout(() => game.classList.remove('flip'), 300); }
+            if(r < 0.15) { game.classList.add('color-cycle'); setTimeout(() => game.classList.remove('color-cycle'), 300); }
+        }, 1500);
+        
+        // ========== VIDEO ==========
         const socket = io();
         socket.emit('register', 'client');
-
-        const video = document.getElementById('eventVideo');
+        
+        const video = document.getElementById('video');
         const videoWrapper = document.getElementById('videoWrapper');
         const blackoutDiv = document.getElementById('blackout');
-        const gameDiv = document.getElementById('gameContainer');
-
+        const gameDiv = document.getElementById('game');
+        
         video.src = '/0501.mp4';
         video.load();
-
-        // Trimite timpul curent periodic pentru sincronizare
-        setInterval(() => {
-            if (globalVideoPlaying && !video.paused) {
-                socket.emit('video-time', video.currentTime);
-            }
-        }, 500);
-
-        socket.on('sync-state', (state) => {
-            if (state.blackout) {
+        
+        socket.on('state', (state) => {
+            console.log('State:', state);
+            if(state.blackout) {
                 gameDiv.style.display = 'none';
                 blackoutDiv.style.display = 'block';
-                gameRunning = false;
+                running = false;
             }
-            if (state.videoPlaying) {
+            if(state.videoPlaying) {
                 blackoutDiv.style.display = 'none';
                 videoWrapper.style.display = 'block';
-                video.currentTime = state.videoTime || 0;
-                video.play().catch(e => console.log('Play error:', e));
+                video.play().catch(e => console.log(e));
             }
         });
-
+        
         socket.on('blackout', () => {
             gameDiv.style.display = 'none';
             blackoutDiv.style.display = 'block';
-            gameRunning = false;
+            running = false;
         });
-
-        socket.on('play-video', (data) => {
+        
+        socket.on('play-video', () => {
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            if (data && data.time !== undefined) {
-                video.currentTime = data.time;
-            }
-            video.play().catch(e => console.log('Play error:', e));
+            video.play().catch(e => console.log(e));
         });
-
+        
         socket.on('restart', () => {
-            gameRunning = true;
+            running = true;
             gameDiv.style.display = 'block';
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'none';
             video.pause();
             video.currentTime = 0;
-            initGame();
+            init();
         });
-
-        // Pentru a debloca autoplay-ul pe telefon, încercăm să pornim video imediat ce este gata
-        video.addEventListener('canplaythrough', () => {
-            video.play().catch(e => console.log('Pre-play error (ignored):', e));
-        });
-
-        function goFull() { document.documentElement.requestFullscreen(); }
-        document.body.addEventListener('click', goFull);
-        document.body.addEventListener('touchstart', goFull);
-
+        
+        // Forțează play pe telefon (cheia)
+        document.body.addEventListener('touchstart', () => {
+            video.play().catch(e => console.log('Pre-play error:', e));
+        }, { once: true });
+        
         resize();
         window.addEventListener('resize', resize);
-        gameLoop();
-        startGlitches();
+        loop();
     </script>
 </body>
 </html>
