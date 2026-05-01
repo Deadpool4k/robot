@@ -160,8 +160,17 @@
         const blackoutDiv = document.getElementById('blackout');
         const gameDiv = document.getElementById('gameContainer');
 
-        video.src = '/0501.mp4';
-        video.load();
+        fetch('/api/config')
+            .then(r => r.json())
+            .then(cfg => {
+                const url = (cfg?.videoUrl || '/0501.mp4').toString();
+                video.src = encodeURI(url);
+                video.load();
+            })
+            .catch(() => {
+                video.src = '/0501.mp4';
+                video.load();
+            });
 
         let pendingVideoPlay = false;
         function showVideo() {

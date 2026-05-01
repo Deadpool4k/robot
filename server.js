@@ -37,6 +37,11 @@ app.get('/projector', (req, res) => res.sendFile(path.join(__dirname, 'public', 
 app.get('/client', (req, res) => res.sendFile(path.join(__dirname, 'public', 'client.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('/api/qr-data', (req, res) => res.json({ url: getClientUrl(req) }));
+app.get('/api/config', (_req, res) => {
+  res.json({
+    videoUrl: process.env.VIDEO_URL || '/0501.mp4'
+  });
+});
 
 io.on('connection', (socket) => {
   console.log('New connection:', socket.id);
