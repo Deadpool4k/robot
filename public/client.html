@@ -31,7 +31,7 @@
     </div>
     <div class="blackout" id="blackout"></div>
     <div class="video-wrapper" id="videoWrapper">
-        <video id="eventVideo" preload="auto" playsinline muted></video>
+        <video id="eventVideo" preload="auto" playsinline webkit-playsinline muted autoplay></video>
     </div>
 
     <script>
@@ -160,7 +160,18 @@
         video.src = '/0501.mp4';
         video.playsInline = true;
         video.muted = true;
+        video.autoplay = true;
         video.load();
+
+        let userInteracted = false;
+        function onUserGesture() {
+            userInteracted = true;
+            // If video is currently showing, allow audio.
+            if (videoWrapper.style.display === 'block') {
+                video.muted = false;
+                video.play().catch(() => {});
+            }
+        }
 
         function syncAndPlayVideo(payload) {
             const nowMs = payload?.nowMs ?? Date.now();
@@ -177,6 +188,14 @@
             try { video.currentTime = elapsedSec; } catch (_) {}
             video.play().catch(e => console.error(e));
         }
+
+        video.addEventListener('error', () => {
+            const err = video.error;
+            console.error('Video error', err);
+            // Basic on-screen hint so it’s not “blank”
+            blackoutDiv.style.display = 'block';
+            blackoutDiv.innerHTML = '<div style="color:#fff;font-family:Courier New, monospace;display:flex;align-items:center;justify-content:center;height:100%;text-align:center;padding:20px;">VIDEO NU POATE FI ÎNCĂRCAT.<br>Verifică dacă <b>/0501.mp4</b> există în <b>public/</b>.</div>';
+        });
 
         socket.on('sync-state', (state) => {
             if (state.blackout) {
@@ -211,9 +230,9 @@
             initGame();
         });
 
-        function goFull() { document.documentElement.requestFullscreen(); }
-        document.body.addEventListener('click', goFull);
-        document.body.addEventListener('touchstart', goFull);
+        function goFull() { document.documentElement.requestFullscreen().catch(() => {}); }
+        document.body.addEventListener('click', () => { onUserGesture(); goFull(); }, { passive: true });
+        document.body.addEventListener('touchstart', () => { onUserGesture(); goFull(); }, { passive: true });
 
         resize();
         window.addEventListener('resize', resize);

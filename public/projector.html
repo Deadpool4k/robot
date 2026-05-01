@@ -25,7 +25,7 @@
         <h1>SCANEAZĂ PENTRU A INTRĂ ÎN ARENĂ</h1>
     </div>
     <div class="blackout" id="blackout"></div>
-    <div class="video-wrapper" id="videoWrapper"><video id="eventVideo" preload="auto" playsinline muted></video></div>
+    <div class="video-wrapper" id="videoWrapper"><video id="eventVideo" preload="auto" playsinline webkit-playsinline muted autoplay></video></div>
 
     <script>
         const socket = io();
@@ -46,6 +46,7 @@
         video.src = '/0501.mp4';
         video.playsInline = true;
         video.muted = true;
+        video.autoplay = true;
         video.load();
 
         function syncAndShowVideo(payload) {
@@ -60,6 +61,22 @@
             try { video.currentTime = elapsedSec; } catch (_) {}
             video.play().catch(e => console.error(e));
         }
+
+        let userInteracted = false;
+        function onUserGesture() {
+            userInteracted = true;
+            if (videoWrapper.style.display === 'block') {
+                video.muted = false;
+                video.play().catch(() => {});
+            }
+        }
+
+        video.addEventListener('error', () => {
+            const err = video.error;
+            console.error('Video error', err);
+            blackoutDiv.style.display = 'block';
+            blackoutDiv.innerHTML = '<div style="color:#fff;font-family:Courier New, monospace;display:flex;align-items:center;justify-content:center;height:100%;text-align:center;padding:20px;">VIDEO NU POATE FI ÎNCĂRCAT.<br>Verifică dacă <b>/0501.mp4</b> există în <b>public/</b>.</div>';
+        });
 
         socket.on('sync-state', (state) => {
             if (state.blackout) { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; }
@@ -82,7 +99,10 @@
             video.muted = true;
         });
 
-        document.body.addEventListener('click', ()=> document.documentElement.requestFullscreen());
+        document.body.addEventListener('click', () => {
+            onUserGesture();
+            document.documentElement.requestFullscreen().catch(() => {});
+        }, { passive: true });
     </script>
 </body>
 </html>
