@@ -125,18 +125,15 @@
                 return;
             }
             
-            // Confirmare
             if (confirm('SIGUR? BLACKOUT + VIDEO pe toate ecranele. Nu poți reveni.')) {
                 console.log('Sending start sequence...');
                 socket.emit('start-sequence');
                 
-                // Disable button after click
                 const btn = document.getElementById('startBtn');
                 btn.disabled = true;
                 btn.style.opacity = '0.5';
                 btn.innerText = '✓ SEQUENCE TRIMISĂ';
                 
-                // Re-enable after 10 seconds just in case
                 setTimeout(() => {
                     btn.disabled = false;
                     btn.style.opacity = '1';
