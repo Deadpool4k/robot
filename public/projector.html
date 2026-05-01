@@ -2,71 +2,56 @@
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arena - Proiector</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #000; position: fixed; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; font-family: 'Courier New', monospace; }
-        .container { text-align: center; }
-        .qr-wrapper { background: white; padding: 30px; border-radius: 20px; }
+        body { background: #000; width: 100%; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: monospace; }
+        .qr-container { text-align: center; background: white; padding: 30px; border-radius: 20px; }
         canvas { width: 300px; height: 300px; }
         h1 { color: white; margin-top: 30px; font-size: 1.5rem; }
-        .video-wrapper, .blackout { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 1000; background: #000; }
+        .video-wrapper, .blackout { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .blackout { z-index: 999; }
         .hidden { display: none; }
     </style>
 </head>
 <body>
-    <div class="container" id="app">
-        <div class="qr-wrapper"><canvas id="qrcode"></canvas></div>
-        <h1>SCANEAZĂ PENTRU A INTRĂ ÎN ARENĂ</h1>
-    </div>
-    <div class="blackout" id="blackout"></div>
-    <div class="video-wrapper" id="videoWrapper"><video id="eventVideo" preload="auto" playsinline></video></div>
+    <div id="qrContainer" class="qr-container"><canvas id="qrcode"></canvas><h1>SCANEAZĂ PENTRU A INTRĂ ÎN ARENĂ</h1></div>
+    <div id="blackout" class="blackout"></div>
+    <div id="videoWrapper" class="video-wrapper"><video id="video" preload="auto" playsinline></video></div>
 
     <script>
         const socket = io();
         socket.emit('register', 'projector');
-
-        fetch('/api/qr-data').then(res=>res.json()).then(data=>{
-            QRCode.toCanvas(document.getElementById('qrcode'), data.url, { width: 300 });
+        
+        fetch('/api/qr-data').then(r=>r.json()).then(d=> {
+            QRCode.toCanvas(document.getElementById('qrcode'), d.url, { width: 300 });
         });
-
-        const video = document.getElementById('eventVideo');
+        
+        const video = document.getElementById('video');
         const videoWrapper = document.getElementById('videoWrapper');
-        const blackoutDiv = document.getElementById('blackout');
-        const appDiv = document.getElementById('app');
-
+        const blackout = document.getElementById('blackout');
+        const qr = document.getElementById('qrContainer');
+        
         video.src = '/0501.mp4';
         video.load();
-
-        function showVideo(data) {
-            blackoutDiv.style.display = 'none';
-            videoWrapper.style.display = 'block';
-            if (data && data.time !== undefined) {
-                video.currentTime = data.time;
-            }
-            video.play().catch(e=>console.log);
-        }
-
-        socket.on('sync-state', (state) => {
-            if (state.blackout) { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; }
-            if (state.videoPlaying) showVideo({ time: state.videoTime });
+        
+        socket.on('state', (state) => {
+            if(state.blackout) { qr.classList.add('hidden'); blackout.style.display = 'block'; }
+            if(state.videoPlaying) { blackout.style.display = 'none'; videoWrapper.style.display = 'block'; video.play(); }
         });
-        socket.on('blackout', () => { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; });
-        socket.on('play-video', showVideo);
+        
+        socket.on('blackout', () => { qr.classList.add('hidden'); blackout.style.display = 'block'; });
+        socket.on('play-video', () => { blackout.style.display = 'none'; videoWrapper.style.display = 'block'; video.play(); });
         socket.on('restart', () => {
-            appDiv.classList.remove('hidden');
-            blackoutDiv.style.display = 'none';
+            qr.classList.remove('hidden');
+            blackout.style.display = 'none';
             videoWrapper.style.display = 'none';
             video.pause();
             video.currentTime = 0;
         });
-
-        document.body.addEventListener('click', ()=> document.documentElement.requestFullscreen());
     </script>
 </body>
 </html>
