@@ -16,6 +16,10 @@ const clients = {
   admins: new Set()
 };
 
+// Stare globală
+let globalBlackout = false;
+let globalVideoPlaying = false;
+
 const getClientUrl = (req) => {
   const host = req.get('host');
   const protocol = req.protocol;
@@ -54,10 +58,18 @@ io.on('connection', (socket) => {
     
     if (type === 'projector') {
       clients.projectors.add(socket);
-      socket.emit('game-state', { isBlackout: globalBlackout });
+      // Trimite starea curentă noului proiector
+      socket.emit('sync-state', { isBlackout: globalBlackout, isVideoPlaying: globalVideoPlaying });
+      if (globalVideoPlaying) {
+        socket.emit('play-video');
+      }
     } else if (type === 'client') {
       clients.clients.add(socket);
-      socket.emit('game-state', { isBlackout: globalBlackout });
+      // Trimite starea curentă noului client
+      socket.emit('sync-state', { isBlackout: globalBlackout, isVideoPlaying: globalVideoPlaying });
+      if (globalVideoPlaying) {
+        socket.emit('play-video');
+      }
     } else if (type === 'admin') {
       clients.admins.add(socket);
     }
@@ -70,17 +82,20 @@ io.on('connection', (socket) => {
     
     const targets = [...clients.projectors, ...clients.clients];
     
+    // Step 1: Blackout
     targets.forEach(client => {
       client.emit('blackout');
     });
-    
     globalBlackout = true;
+    globalVideoPlaying = false;
     
+    // Step 2: After 2 seconds, play video
     setTimeout(() => {
       console.log('Playing video on all screens');
       targets.forEach(client => {
         client.emit('play-video');
       });
+      globalVideoPlaying = true;
     }, 2000);
   });
   
@@ -91,8 +106,6 @@ io.on('connection', (socket) => {
     console.log('Disconnected:', socket.id);
   });
 });
-
-let globalBlackout = false;
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
