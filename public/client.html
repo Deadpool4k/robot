@@ -6,522 +6,204 @@
     <title>Arena - Jucător</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        body {
-            background: #000;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: 'Courier New', monospace;
-            touch-action: manipulation;
-        }
-        
-        .game-container {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
-            overflow: hidden;
-            transition: all 0.05s ease;
-        }
-        
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-        
-        .score-board {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 10px;
-            font-size: 24px;
-            font-weight: bold;
-            z-index: 10;
-            font-family: monospace;
-            letter-spacing: 2px;
-        }
-        
-        .controls-hint {
-            position: absolute;
-            bottom: 20px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            color: rgba(255,255,255,0.6);
-            background: rgba(0,0,0,0.5);
-            padding: 10px;
-            font-size: 14px;
-            z-index: 10;
-        }
-        
-        .video-wrapper {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: none;
-            z-index: 1000;
-            background: #000;
-        }
-        
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .blackout {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            z-index: 999;
-            display: none;
-        }
-        
-        .glitch-shake {
-            animation: glitch-shake 0.1s infinite;
-        }
-        
-        @keyframes glitch-shake {
-            0% { transform: translate(0, 0); }
-            25% { transform: translate(-3px, 2px); }
-            50% { transform: translate(3px, -2px); }
-            75% { transform: translate(-2px, 3px); }
-            100% { transform: translate(2px, -3px); }
-        }
-        
-        .glitch-flip {
-            transform: scale(1, -1) !important;
-            transition: transform 0.05s;
-        }
-        
-        .glitch-color {
-            animation: color-cycle 0.2s infinite;
-        }
-        
-        @keyframes color-cycle {
-            0% { filter: hue-rotate(0deg); }
-            25% { filter: hue-rotate(90deg); }
-            50% { filter: hue-rotate(180deg); }
-            75% { filter: hue-rotate(270deg); }
-            100% { filter: hue-rotate(360deg); }
-        }
-        
-        .invert {
-            filter: invert(1);
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { background: #000; position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Courier New', monospace; touch-action: manipulation; }
+        .game-container { width: 100%; height: 100%; position: relative; background: linear-gradient(to bottom, #87CEEB, #E0F6FF); overflow: hidden; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
+        .score-board { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 10px; font-size: 24px; font-weight: bold; z-index: 10; }
+        .controls-hint { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.5); padding: 10px; font-size: 14px; z-index: 10; }
+        .video-wrapper { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 1000; background: #000; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .blackout { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 999; display: none; }
+        .glitch-shake { animation: shake 0.1s infinite; }
+        @keyframes shake { 0% { transform: translate(0,0); } 25% { transform: translate(-3px,2px); } 50% { transform: translate(3px,-2px); } 75% { transform: translate(-2px,3px); } 100% { transform: translate(2px,-3px); } }
+        .glitch-flip { transform: scale(1, -1) !important; transition: transform 0.05s; }
+        .glitch-color { animation: color-cycle 0.2s infinite; }
+        @keyframes color-cycle { 0% { filter: hue-rotate(0deg); } 25% { filter: hue-rotate(90deg); } 50% { filter: hue-rotate(180deg); } 75% { filter: hue-rotate(270deg); } 100% { filter: hue-rotate(360deg); } }
+        .invert { filter: invert(1); }
     </style>
 </head>
 <body>
     <div class="game-container" id="gameContainer">
         <div class="score-board" id="score">SCORE: 0</div>
         <canvas id="gameCanvas"></canvas>
-        <div class="controls-hint">⬅️ APASĂ STÂNGA SAU DREAPTA ➡️</div>
+        <div class="controls-hint">⬅️ STÂNGA | DREAPTA ➡️</div>
     </div>
-    
     <div class="blackout" id="blackout"></div>
     <div class="video-wrapper" id="videoWrapper">
-        <video id="eventVideo" preload="auto" muted playsinline></video>
+        <video id="eventVideo" preload="auto" playsinline muted></video>
     </div>
-    
+
     <script>
-        // ==================== DOODLE JUMP GAME (multe glitch-uri) ====================
+        // ========== DOODLE JUMP ==========
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        
-        let width, height;
-        let score = 0;
-        let gameRunning = true;
-        
-        let player = {
-            x: 0,
-            y: 0,
-            width: 30,
-            height: 30,
-            velX: 0,
-            velY: 0,
-            gravity: 0.5,
-            jumpPower: -14,
-            grounded: false
-        };
-        
+        let width, height, score = 0, gameRunning = true;
+        let player = { x: 0, y: 0, width: 30, height: 30, velX: 0, velY: 0, gravity: 0.5, jumpPower: -14 };
         let platforms = [];
-        let platformWidth = 60;
-        let platformHeight = 15;
-        
-        let touchLeft = false;
-        let touchRight = false;
+        let touchLeft = false, touchRight = false;
         let moveSpeed = 8;
-        
-        let glitchInterval;
         let controlInverted = false;
-        
-        function resizeCanvas() {
+        let glitchInterval;
+
+        function resize() {
             width = window.innerWidth;
             height = window.innerHeight;
             canvas.width = width;
             canvas.height = height;
             initGame();
         }
-        
+
         function initGame() {
             player.width = Math.min(40, width * 0.1);
             player.height = player.width;
-            player.x = width / 2 - player.width / 2;
+            player.x = width/2 - player.width/2;
             player.y = height - 150;
-            player.velX = 0;
-            player.velY = 0;
+            player.velX = 0; player.velY = 0;
             score = 0;
             updateScore();
-            
             platforms = [];
-            let numPlatforms = Math.floor(height / 70);
-            for (let i = 0; i < numPlatforms; i++) {
-                platforms.push({
-                    x: Math.random() * (width - platformWidth),
-                    y: height - 50 - (i * 70),
-                    width: platformWidth,
-                    height: platformHeight
-                });
+            for (let i = 0; i < Math.floor(height/70); i++) {
+                platforms.push({ x: Math.random() * (width - 60), y: height - 50 - i*70, width: 60, height: 15 });
             }
         }
-        
-        function updateScore() {
-            document.getElementById('score').innerText = `SCORE: ${Math.floor(score)}`;
-        }
-        
+
+        function updateScore() { document.getElementById('score').innerText = `SCORE: ${Math.floor(score)}`; }
+
         function handleInput() {
             let move = 0;
             if (touchLeft) move = -moveSpeed;
             if (touchRight) move = moveSpeed;
-            
             if (controlInverted) move = -move;
-            
             player.velX = move;
         }
-        
+
         function updateGame() {
             if (!gameRunning) return;
-            
             handleInput();
-            
             player.velY += player.gravity;
             player.x += player.velX;
             player.y += player.velY;
-            
             if (player.x < 0) player.x = 0;
             if (player.x + player.width > width) player.x = width - player.width;
-            
+
             player.grounded = false;
-            for (let platform of platforms) {
-                if (player.velY > 0 && 
-                    player.y + player.height >= platform.y &&
-                    player.y + player.height <= platform.y + platform.height + 5 &&
-                    player.x + player.width > platform.x &&
-                    player.x < platform.x + platform.width) {
+            for (let p of platforms) {
+                if (player.velY > 0 && player.y + player.height >= p.y && player.y + player.height <= p.y + p.height + 5 &&
+                    player.x + player.width > p.x && player.x < p.x + p.width) {
                     player.velY = player.jumpPower;
-                    player.grounded = true;
-                    player.y = platform.y - player.height;
+                    player.y = p.y - player.height;
                 }
             }
-            
-            if (player.y < height / 3) {
-                let diff = height / 3 - player.y;
+
+            if (player.y < height/3) {
+                let diff = height/3 - player.y;
                 player.y += diff;
-                for (let platform of platforms) {
-                    platform.y += diff;
-                }
+                for (let p of platforms) p.y += diff;
                 score += diff * 0.5;
                 updateScore();
             }
-            
-            if (platforms[platforms.length - 1].y > 0) {
-                platforms.push({
-                    x: Math.random() * (width - platformWidth),
-                    y: -platformHeight,
-                    width: platformWidth,
-                    height: platformHeight
-                });
+
+            if (platforms[platforms.length-1]?.y > 0) {
+                platforms.push({ x: Math.random() * (width - 60), y: -15, width: 60, height: 15 });
             }
-            
             platforms = platforms.filter(p => p.y < height);
-            
-            if (player.y > height) {
-                gameRunning = false;
-                setTimeout(() => {
-                    initGame();
-                    gameRunning = true;
-                }, 1000);
-            }
+            if (player.y > height) { gameRunning = false; setTimeout(() => { initGame(); gameRunning = true; }, 1000); }
         }
-        
+
         function draw() {
             if (!ctx) return;
-            
             ctx.clearRect(0, 0, width, height);
-            
-            let gradient = ctx.createLinearGradient(0, 0, 0, height);
-            gradient.addColorStop(0, '#87CEEB');
-            gradient.addColorStop(1, '#E0F6FF');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, width, height);
-            
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            for (let i = 0; i < 3; i++) {
-                ctx.beginPath();
-                ctx.ellipse(100 + i * 200, 50, 50, 40, 0, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            
+            let grad = ctx.createLinearGradient(0, 0, 0, height);
+            grad.addColorStop(0, '#87CEEB'); grad.addColorStop(1, '#E0F6FF');
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, width, height);
             ctx.fillStyle = '#8B4513';
-            ctx.shadowBlur = 5;
-            for (let platform of platforms) {
-                ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-                ctx.fillStyle = '#A0522D';
-                ctx.fillRect(platform.x + 5, platform.y - 5, platform.width - 10, 5);
-                ctx.fillStyle = '#8B4513';
-            }
-            ctx.shadowBlur = 0;
-            
+            for (let p of platforms) ctx.fillRect(p.x, p.y, p.width, p.height);
             ctx.fillStyle = '#FF4444';
-            ctx.shadowBlur = 10;
             ctx.fillRect(player.x, player.y, player.width, player.height);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(player.x + 5, player.y + 8, 6, 6);
-            ctx.fillRect(player.x + player.width - 11, player.y + 8, 6, 6);
-            ctx.fillStyle = '#000';
-            ctx.fillRect(player.x + 6, player.y + 10, 3, 3);
-            ctx.fillRect(player.x + player.width - 10, player.y + 10, 3, 3);
-            ctx.shadowBlur = 0;
         }
-        
-        function handleTouchStart(e) {
+
+        function gameLoop() { updateGame(); draw(); requestAnimationFrame(gameLoop); }
+
+        canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            const rect = canvas.getBoundingClientRect();
-            const touchX = e.touches[0].clientX - rect.left;
-            const center = width / 2;
-            
-            if (touchX < center) {
-                touchLeft = true;
-                touchRight = false;
-            } else {
-                touchRight = true;
-                touchLeft = false;
-            }
-        }
-        
-        function handleTouchEnd(e) {
-            e.preventDefault();
-            touchLeft = false;
-            touchRight = false;
-        }
-        
-        function gameLoop() {
-            updateGame();
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
-        
-        // ==================== MULTE GLITCH-URI ====================
-        function startGlitchEffects() {
+            let cx = e.touches[0].clientX;
+            if (cx < width/2) { touchLeft = true; touchRight = false; }
+            else { touchRight = true; touchLeft = false; }
+        });
+        canvas.addEventListener('touchend', (e) => { e.preventDefault(); touchLeft = false; touchRight = false; });
+
+        // GLITCH-URI (MULTE, DAR STABILE)
+        function startGlitches() {
             glitchInterval = setInterval(() => {
                 if (!gameRunning) return;
-                
                 const container = document.querySelector('.game-container');
                 const rand = Math.random();
-                
-                // 1. SHAKE
-                if (rand < 0.4) {
-                    container.classList.add('glitch-shake');
-                    setTimeout(() => container.classList.remove('glitch-shake'), 200);
-                }
-                
-                // 2. COLOR INVERSION
-                if (rand < 0.3) {
-                    document.body.classList.add('invert');
-                    setTimeout(() => document.body.classList.remove('invert'), 400);
-                }
-                
-                // 3. CONTROL INVERSION
-                if (rand < 0.25) {
-                    controlInverted = true;
-                    const artifact = document.createElement('div');
-                    artifact.textContent = '⚠️ CONTROALE INVERSTATE ⚠️';
-                    artifact.style.position = 'fixed';
-                    artifact.style.top = '40%';
-                    artifact.style.left = '50%';
-                    artifact.style.transform = 'translate(-50%, -50%)';
-                    artifact.style.color = '#FF0000';
-                    artifact.style.background = '#000';
-                    artifact.style.padding = '15px';
-                    artifact.style.fontFamily = 'monospace';
-                    artifact.style.zIndex = '100';
-                    artifact.style.fontSize = '18px';
-                    artifact.style.fontWeight = 'bold';
-                    document.body.appendChild(artifact);
-                    setTimeout(() => artifact.remove(), 2000);
-                    setTimeout(() => { controlInverted = false; }, 2000);
-                }
-                
-                // 4. FLIP (sus-jos)
-                if (rand < 0.2) {
-                    container.classList.add('glitch-flip');
-                    setTimeout(() => container.classList.remove('glitch-flip'), 300);
-                }
-                
-                // 5. COLOR CYCLE
-                if (rand < 0.25) {
-                    container.classList.add('glitch-color');
-                    setTimeout(() => container.classList.remove('glitch-color'), 300);
-                }
-                
-                // 6. POSITION GLITCH
-                if (rand < 0.15) {
-                    container.style.transform = `translate(${Math.random() * 20 - 10}px, ${Math.random() * 20 - 10}px)`;
-                    setTimeout(() => container.style.transform = '', 100);
-                }
-                
-                // 7. PLATFORMS DISAPPEAR
-                if (rand < 0.12) {
-                    const originalPlatforms = [...platforms];
-                    platforms = [];
-                    setTimeout(() => {
-                        platforms = originalPlatforms;
-                    }, 500);
-                }
-                
-                // 8. FAKE TEXT ARTIFACT
-                if (rand < 0.2) {
-                    const artifact = document.createElement('div');
-                    const messages = ['⚠️ SISTEM CORUPT ⚠️', '█▓▒░ HACKED ░▒▓█', 'ERROR 0xFFFF', '>> GLITCH MODE <<'];
-                    artifact.textContent = messages[Math.floor(Math.random() * messages.length)];
-                    artifact.style.position = 'fixed';
-                    artifact.style.top = Math.random() * 80 + 10 + '%';
-                    artifact.style.left = Math.random() * 80 + 10 + '%';
-                    artifact.style.color = '#0F0';
-                    artifact.style.background = '#000';
-                    artifact.style.padding = '8px';
-                    artifact.style.fontFamily = 'monospace';
-                    artifact.style.zIndex = '100';
-                    artifact.style.fontSize = '14px';
-                    document.body.appendChild(artifact);
-                    setTimeout(() => artifact.remove(), 800);
-                }
+                if (rand < 0.4) { container.classList.add('glitch-shake'); setTimeout(() => container.classList.remove('glitch-shake'), 200); }
+                if (rand < 0.3) { document.body.classList.add('invert'); setTimeout(() => document.body.classList.remove('invert'), 400); }
+                if (rand < 0.25) { controlInverted = true; setTimeout(() => controlInverted = false, 2000); }
+                if (rand < 0.2) { container.classList.add('glitch-flip'); setTimeout(() => container.classList.remove('glitch-flip'), 300); }
+                if (rand < 0.25) { container.classList.add('glitch-color'); setTimeout(() => container.classList.remove('glitch-color'), 300); }
+                if (rand < 0.15) { container.style.transform = `translate(${Math.random()*20-10}px,${Math.random()*20-10}px)`; setTimeout(() => container.style.transform = '', 100); }
             }, 1500);
         }
-        
-        // ==================== WEBSOCKET + VIDEO (functional pe telefon) ====================
+
+        // ========== WEBSOCKET + VIDEO ==========
         const socket = io();
         socket.emit('register', 'client');
-        
-        const videoWrapper = document.getElementById('videoWrapper');
+
         const video = document.getElementById('eventVideo');
+        const videoWrapper = document.getElementById('videoWrapper');
         const blackoutDiv = document.getElementById('blackout');
-        const gameContainer = document.getElementById('gameContainer');
-        
+        const gameDiv = document.getElementById('gameContainer');
+
         video.src = '/0501.mp4';
         video.load();
-        
-        // Pregătim videoclipul să poată porni instant
-        video.addEventListener('canplaythrough', () => {
-            console.log('Video preloaded');
-        });
-        
-        // Forțăm videoclipul să înceapă pe mute pentru a debloca autoplay
-        video.play().then(() => {
-            video.pause();
-            video.currentTime = 0;
-            console.log('Video pre-played (muted)');
-        }).catch(e => console.log('Pre-play error:', e));
-        
+
         socket.on('sync-state', (state) => {
-            console.log('Sync state:', state);
-            if (state.isBlackout) {
-                gameContainer.style.display = 'none';
+            if (state.blackout) {
+                gameDiv.style.display = 'none';
                 blackoutDiv.style.display = 'block';
                 gameRunning = false;
             }
-            if (state.isVideoPlaying) {
+            if (state.videoPlaying) {
                 blackoutDiv.style.display = 'none';
                 videoWrapper.style.display = 'block';
-                video.currentTime = 0;
-                video.play().then(() => {
-                    setTimeout(() => { video.muted = false; }, 100);
-                }).catch(err => console.error('Video play error:', err));
+                video.play().then(() => { setTimeout(() => video.muted = false, 100); }).catch(e => console.log);
             }
         });
-        
+
         socket.on('blackout', () => {
-            console.log('Blackout - hiding game');
-            gameContainer.style.display = 'none';
+            gameDiv.style.display = 'none';
             blackoutDiv.style.display = 'block';
             gameRunning = false;
         });
-        
+
         socket.on('play-video', () => {
-            console.log('Playing video');
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            
-            video.currentTime = 0;
-            video.play().then(() => {
-                setTimeout(() => { video.muted = false; }, 100);
-            }).catch(err => {
-                console.error('Auto-play error:', err);
-                // Try again with user gesture
-                document.body.addEventListener('click', function playOnClick() {
-                    video.play().then(() => {
-                        setTimeout(() => { video.muted = false; }, 100);
-                    });
-                    document.body.removeEventListener('click', playOnClick);
-                }, { once: true });
-            });
+            video.play().then(() => { setTimeout(() => video.muted = false, 100); }).catch(e => console.log);
         });
-        
-        // Fullscreen on any click/touch
-        function goFullscreen() {
-            const elem = document.documentElement;
-            if (elem.requestFullscreen) {
-                elem.requestFullscreen();
-            }
-        }
-        
-        document.body.addEventListener('click', goFullscreen);
-        document.body.addEventListener('touchstart', goFullscreen);
-        
-        // Initialize game
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-        canvas.addEventListener('touchstart', handleTouchStart);
-        canvas.addEventListener('touchend', handleTouchEnd);
-        canvas.addEventListener('touchcancel', handleTouchEnd);
-        
+
+        socket.on('restart', () => {
+            console.log('Restart primit');
+            gameRunning = true;
+            gameDiv.style.display = 'block';
+            blackoutDiv.style.display = 'none';
+            videoWrapper.style.display = 'none';
+            video.pause();
+            video.currentTime = 0;
+            initGame();
+        });
+
+        function goFull() { document.documentElement.requestFullscreen(); }
+        document.body.addEventListener('click', goFull);
+        document.body.addEventListener('touchstart', goFull);
+
+        resize();
+        window.addEventListener('resize', resize);
         gameLoop();
-        startGlitchEffects();
-        
-        console.log('Client ready with enhanced glitches');
+        startGlitches();
     </script>
 </body>
 </html>
