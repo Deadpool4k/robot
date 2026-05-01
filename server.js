@@ -10,92 +10,57 @@ const io = socketIo(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-let globalBlackout = false;
-let globalVideoPlaying = false;
-let globalVideoTime = 0; // Stochează timpul curent al videoclipului
-let videoStartTime = null; // Momentul când a început videoclipul (server)
+let isBlackout = false;
+let isVideoPlaying = false;
 
 const clients = {
   projectors: new Set(),
-  clients: new Set(),
-  admins: new Set()
-};
-
-const getClientUrl = (req) => {
-  const host = req.get('host');
-  const protocol = req.protocol;
-  return `${protocol}://${host}/client`;
+  clients: new Set()
 };
 
 app.get('/', (req, res) => res.redirect('/projector'));
 app.get('/projector', (req, res) => res.sendFile(path.join(__dirname, 'public', 'projector.html')));
 app.get('/client', (req, res) => res.sendFile(path.join(__dirname, 'public', 'client.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-app.get('/api/qr-data', (req, res) => res.json({ url: getClientUrl(req) }));
+app.get('/api/qr-data', (req, res) => {
+  const host = req.get('host');
+  res.json({ url: `${req.protocol}://${host}/client` });
+});
 
-// Actualizează timpul videoclipului (clientul trimite periodic)
 io.on('connection', (socket) => {
-  console.log('New connection:', socket.id);
+  console.log('Connected:', socket.id);
 
   socket.on('register', (type) => {
-    clients.projectors.delete(socket);
-    clients.clients.delete(socket);
-    clients.admins.delete(socket);
-
     if (type === 'projector') {
       clients.projectors.add(socket);
-      socket.emit('sync-state', { 
-        blackout: globalBlackout, 
-        videoPlaying: globalVideoPlaying,
-        videoTime: globalVideoTime
-      });
-      if (globalVideoPlaying) socket.emit('play-video', { time: globalVideoTime });
+      socket.emit('state', { blackout: isBlackout, videoPlaying: isVideoPlaying });
     } else if (type === 'client') {
       clients.clients.add(socket);
-      socket.emit('sync-state', { 
-        blackout: globalBlackout, 
-        videoPlaying: globalVideoPlaying,
-        videoTime: globalVideoTime
-      });
-      if (globalVideoPlaying) socket.emit('play-video', { time: globalVideoTime });
-    } else if (type === 'admin') {
-      clients.admins.add(socket);
+      socket.emit('state', { blackout: isBlackout, videoPlaying: isVideoPlaying });
     }
-
     console.log(`Projectors: ${clients.projectors.size}, Clients: ${clients.clients.size}`);
   });
 
-  // Clientul raportează timpul curent al videoclipului
-  socket.on('video-time', (time) => {
-    if (globalVideoPlaying) {
-      globalVideoTime = time;
-    }
-  });
-
-  socket.on('start-sequence', () => {
-    console.log('START SEQUENCE');
-    const targets = [...clients.projectors, ...clients.clients];
-    targets.forEach(c => c.emit('blackout'));
-    globalBlackout = true;
-    globalVideoPlaying = false;
-    globalVideoTime = 0;
-    videoStartTime = null;
-
+  socket.on('start', () => {
+    console.log('START triggered');
+    const all = [...clients.projectors, ...clients.clients];
+    
+    // Blackout
+    all.forEach(c => c.emit('blackout'));
+    isBlackout = true;
+    isVideoPlaying = false;
+    
+    // Video after 2 seconds
     setTimeout(() => {
-      videoStartTime = Date.now();
-      globalVideoPlaying = true;
-      globalVideoTime = 0;
-      targets.forEach(c => c.emit('play-video', { time: 0 }));
+      all.forEach(c => c.emit('play-video'));
+      isVideoPlaying = true;
     }, 2000);
   });
 
   socket.on('restart', () => {
     console.log('RESTART');
-    globalBlackout = false;
-    globalVideoPlaying = false;
-    globalVideoTime = 0;
-    videoStartTime = null;
-
+    isBlackout = false;
+    isVideoPlaying = false;
     const all = [...clients.projectors, ...clients.clients];
     all.forEach(c => c.emit('restart'));
   });
@@ -103,9 +68,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     clients.projectors.delete(socket);
     clients.clients.delete(socket);
-    clients.admins.delete(socket);
   });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server pe port ${PORT}`));
+server.listen(3000, () => console.log('Server running on port 3000'));
