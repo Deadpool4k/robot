@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Arena - Proiector</title>
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #000; position: fixed; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; font-family: 'Courier New', monospace; }
         .container { text-align: center; }
         .qr-wrapper { background: white; padding: 30px; border-radius: 20px; }
-        canvas { width: 300px; height: 300px; }
+        #qrcode { display: flex; justify-content: center; align-items: center; }
+        #qrcode img, #qrcode canvas { width: 300px; height: 300px; }
         h1 { color: white; margin-top: 30px; font-size: 1.5rem; }
         .video-wrapper, .blackout { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 1000; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
@@ -21,7 +22,7 @@
 </head>
 <body>
     <div class="container" id="app">
-        <div class="qr-wrapper"><canvas id="qrcode"></canvas></div>
+        <div class="qr-wrapper"><div id="qrcode"></div></div>
         <h1>SCANEAZĂ PENTRU A INTRĂ ÎN ARENĂ</h1>
     </div>
     <div class="blackout" id="blackout"></div>
@@ -33,16 +34,27 @@
         const socket = io();
         socket.emit('register', 'projector');
 
-        fetch('/api/qr-data').then(res=>res.json()).then(data=>{
-            QRCode.toCanvas(document.getElementById('qrcode'), data.url, { width: 300 });
-        });
+        fetch('/api/qr-data')
+            .then(res => res.json())
+            .then(data => {
+                const qrDiv = document.getElementById('qrcode');
+                qrDiv.innerHTML = '';
+                new QRCode(qrDiv, {
+                    text: data.url,
+                    width: 300,
+                    height: 300,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+            })
+            .catch(err => console.error('QR error:', err));
 
         const video = document.getElementById('eventVideo');
         const videoWrapper = document.getElementById('videoWrapper');
         const blackoutDiv = document.getElementById('blackout');
         const appDiv = document.getElementById('app');
 
-        // Suport R2: încarcă URL-ul din config dacă există
         fetch('/api/config')
             .then(r => r.json())
             .catch(() => ({}))
@@ -54,8 +66,6 @@
         function showVideo() {
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            // Aceasta este logica originală care funcționa:
-            // pornește pe mute, apoi după 100ms dă unmute
             video.play().then(() => {
                 setTimeout(() => { video.muted = false; }, 100);
             }).catch(e => console.log('Video play error:', e));
@@ -76,26 +86,12 @@
             video.muted = true;
         });
 
-        // Fullscreen la orice click (asta deblochează și sunetul indirect)
         document.body.addEventListener('click', () => {
             document.documentElement.requestFullscreen().catch(() => {});
         });
         document.body.addEventListener('touchstart', () => {
             document.documentElement.requestFullscreen().catch(() => {});
         });
-        // Generează QR code
-fetch('/api/qr-data')
-    .then(res => res.json())
-    .then(data => {
-        const canvas = document.getElementById('qrcode');
-        if (canvas) {
-            QRCode.toCanvas(canvas, data.url, { width: 300, margin: 2 }, (err) => {
-                if (err) console.error('QR error:', err);
-                else console.log('QR generat:', data.url);
-            });
-        }
-    })
-    .catch(err => console.error('Fetch error:', err));
     </script>
 </body>
 </html>
