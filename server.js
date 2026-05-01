@@ -22,7 +22,7 @@ const clients = {
 const getClientUrl = (req) => {
   const host = req.get('host');
   const protocol = req.protocol;
-  return `${protocol}://${host}/client`;
+  return ${protocol}://${host}/client;
 };
 
 app.get('/', (req, res) => res.redirect('/projector'));
@@ -51,7 +51,7 @@ io.on('connection', (socket) => {
       clients.admins.add(socket);
     }
 
-    console.log(`Projectors: ${clients.projectors.size}, Clients: ${clients.clients.size}`);
+    console.log(Projectors: ${clients.projectors.size}, Clients: ${clients.clients.size});
   });
 
   socket.on('start-sequence', () => {
@@ -85,4 +85,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server pe port ${PORT}`));
+server.listen(PORT, () => console.log(Server pe port ${PORT}));
