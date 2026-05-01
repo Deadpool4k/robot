@@ -46,10 +46,28 @@
         function showVideo() {
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            video.play()
-                .then(() => setTimeout(() => video.muted = false, 100))
-                .catch(e => console.log(e));
+            video.muted = true; // fără sunet + autoplay-friendly
+            video.play().catch(e => console.log(e));
         }
+
+        // Recover from buffering stalls on unstable networks/devices
+        let lastRecoverAt = 0;
+        function recoverVideoPlayback() {
+            const now = Date.now();
+            if (now - lastRecoverAt < 1500) return;
+            lastRecoverAt = now;
+            if (videoWrapper.style.display !== 'block') return;
+            video.muted = true;
+            video.play().catch(() => {
+                try {
+                    video.load();
+                    video.play().catch(() => {});
+                } catch {}
+            });
+        }
+        video.addEventListener('stalled', recoverVideoPlayback);
+        video.addEventListener('waiting', recoverVideoPlayback);
+        video.addEventListener('error', recoverVideoPlayback);
 
         socket.on('sync-state', (state) => {
             if (state.blackout) {
