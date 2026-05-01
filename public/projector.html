@@ -83,6 +83,19 @@
         document.body.addEventListener('touchstart', () => {
             document.documentElement.requestFullscreen().catch(() => {});
         });
+        // Generează QR code
+fetch('/api/qr-data')
+    .then(res => res.json())
+    .then(data => {
+        const canvas = document.getElementById('qrcode');
+        if (canvas) {
+            QRCode.toCanvas(canvas, data.url, { width: 300, margin: 2 }, (err) => {
+                if (err) console.error('QR error:', err);
+                else console.log('QR generat:', data.url);
+            });
+        }
+    })
+    .catch(err => console.error('Fetch error:', err));
     </script>
 </body>
 </html>
