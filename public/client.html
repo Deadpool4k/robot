@@ -163,6 +163,26 @@
         video.src = '/0501.mp4';
         video.load();
 
+        let pendingVideoPlay = false;
+        function showVideo() {
+            pendingVideoPlay = true;
+            blackoutDiv.style.display = 'none';
+            gameDiv.style.display = 'none';
+            videoWrapper.style.display = 'block';
+            video.muted = true; // autoplay-friendly + cerința: fără sunet
+
+            const tryPlay = () => video.play().then(() => { pendingVideoPlay = false; }).catch(() => {});
+            tryPlay();
+
+            // If autoplay is blocked, retry on first user interaction.
+            const resume = () => {
+                if (!pendingVideoPlay) return;
+                tryPlay();
+            };
+            document.body.addEventListener('click', resume, { once: true, passive: true });
+            document.body.addEventListener('touchstart', resume, { once: true, passive: true });
+        }
+
         socket.on('sync-state', (state) => {
             if (state.blackout) {
                 gameDiv.style.display = 'none';
@@ -173,12 +193,7 @@
             }
 
             if (state.videoPlaying) {
-                gameDiv.style.display = 'none';
-                blackoutDiv.style.display = 'none';
-                videoWrapper.style.display = 'block';
-                video.play()
-                    .then(() => { setTimeout(() => video.muted = false, 100); })
-                    .catch(e => console.log(e));
+                showVideo();
             } else {
                 videoWrapper.style.display = 'none';
             }
@@ -191,12 +206,7 @@
         });
 
         socket.on('play-video', () => {
-            blackoutDiv.style.display = 'none';
-            gameDiv.style.display = 'none';
-            videoWrapper.style.display = 'block';
-            video.play()
-                .then(() => { setTimeout(() => video.muted = false, 100); })
-                .catch(e => console.log(e));
+            showVideo();
         });
 
         socket.on('restart', () => {
@@ -207,6 +217,7 @@
             videoWrapper.style.display = 'none';
             video.pause();
             video.currentTime = 0;
+            video.muted = true;
             initGame();
         });
 

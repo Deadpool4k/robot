@@ -7,6 +7,10 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
+// Behind Railway/any reverse proxy, this enables correct protocol/host detection
+// (e.g. x-forwarded-proto: https) for QR URLs and avoids mixed-content issues.
+app.set('trust proxy', true);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 let globalBlackout = false;
@@ -19,10 +23,14 @@ const clients = {
 };
 
 const getClientUrl = (req) => {
-  const host = req.get('host');
-  const protocol = req.protocol;
+  const forwardedProto = (req.headers['x-forwarded-proto'] || '').toString().split(',')[0].trim();
+  const protocol = forwardedProto || req.protocol;
+  const forwardedHost = (req.headers['x-forwarded-host'] || '').toString().split(',')[0].trim();
+  const host = forwardedHost || req.get('host');
   return `${protocol}://${host}/client`;
 };
+
+app.get('/health', (_req, res) => res.status(200).send('ok'));
 
 app.get('/', (req, res) => res.redirect('/projector'));
 app.get('/projector', (req, res) => res.sendFile(path.join(__dirname, 'public', 'projector.html')));
