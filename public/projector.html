@@ -31,9 +31,12 @@
         const socket = io();
         socket.emit('register', 'projector');
 
-        fetch('/api/qr-data').then(res=>res.json()).then(data=>{
-            QRCode.toCanvas(document.getElementById('qrcode'), data.url, { width: 300 });
-        });
+        fetch('/api/qr-data')
+            .then(res => res.json())
+            .then(data => {
+                QRCode.toCanvas(document.getElementById('qrcode'), data.url, { width: 300 });
+            })
+            .catch(err => console.error(err));
 
         const video = document.getElementById('eventVideo');
         const videoWrapper = document.getElementById('videoWrapper');
@@ -41,26 +44,42 @@
         const appDiv = document.getElementById('app');
 
         video.src = '/0501.mp4';
+        video.playsInline = true;
+        video.muted = true;
         video.load();
 
-        function showVideo() {
+        function syncAndShowVideo(payload) {
+            const nowMs = payload?.nowMs ?? Date.now();
+            const startAtMs = payload?.videoStartAtMs ?? null;
+            const elapsedSec = (startAtMs ? Math.max(0, (nowMs - startAtMs) / 1000) : 0);
+
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            video.play().then(()=> setTimeout(()=> video.muted=false, 100)).catch(e=>console.log);
+            // Autoplay on mobile requires muted; keep muted.
+            video.muted = true;
+            try { video.currentTime = elapsedSec; } catch (_) {}
+            video.play().catch(e => console.error(e));
         }
 
         socket.on('sync-state', (state) => {
             if (state.blackout) { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; }
-            if (state.videoPlaying) showVideo();
+            if (state.videoPlaying) {
+                appDiv.classList.add('hidden');
+                syncAndShowVideo(state);
+            }
         });
         socket.on('blackout', () => { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; });
-        socket.on('play-video', showVideo);
+        socket.on('play-video', (payload) => {
+            appDiv.classList.add('hidden');
+            syncAndShowVideo(payload);
+        });
         socket.on('restart', () => {
             appDiv.classList.remove('hidden');
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'none';
             video.pause();
             video.currentTime = 0;
+            video.muted = true;
         });
 
         document.body.addEventListener('click', ()=> document.documentElement.requestFullscreen());

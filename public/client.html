@@ -158,7 +158,25 @@
         const gameDiv = document.getElementById('gameContainer');
 
         video.src = '/0501.mp4';
+        video.playsInline = true;
+        video.muted = true;
         video.load();
+
+        function syncAndPlayVideo(payload) {
+            const nowMs = payload?.nowMs ?? Date.now();
+            const startAtMs = payload?.videoStartAtMs ?? null;
+            const elapsedSec = (startAtMs ? Math.max(0, (nowMs - startAtMs) / 1000) : 0);
+
+            blackoutDiv.style.display = 'none';
+            gameDiv.style.display = 'none';
+            gameRunning = false;
+            videoWrapper.style.display = 'block';
+
+            // iOS/Android: autoplay works reliably only while muted.
+            video.muted = true;
+            try { video.currentTime = elapsedSec; } catch (_) {}
+            video.play().catch(e => console.error(e));
+        }
 
         socket.on('sync-state', (state) => {
             if (state.blackout) {
@@ -167,9 +185,7 @@
                 gameRunning = false;
             }
             if (state.videoPlaying) {
-                blackoutDiv.style.display = 'none';
-                videoWrapper.style.display = 'block';
-                video.play().then(() => { setTimeout(() => video.muted = false, 100); }).catch(e => console.log);
+                syncAndPlayVideo(state);
             }
         });
 
@@ -179,10 +195,8 @@
             gameRunning = false;
         });
 
-        socket.on('play-video', () => {
-            blackoutDiv.style.display = 'none';
-            videoWrapper.style.display = 'block';
-            video.play().then(() => { setTimeout(() => video.muted = false, 100); }).catch(e => console.log);
+        socket.on('play-video', (payload) => {
+            syncAndPlayVideo(payload);
         });
 
         socket.on('restart', () => {
@@ -193,6 +207,7 @@
             videoWrapper.style.display = 'none';
             video.pause();
             video.currentTime = 0;
+            video.muted = true;
             initGame();
         });
 
