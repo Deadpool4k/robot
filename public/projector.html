@@ -17,27 +17,6 @@
         video { width: 100%; height: 100%; object-fit: cover; }
         .blackout { z-index: 999; }
         .hidden { display: none; }
-        .sound-hint {
-            position: fixed;
-            bottom: 30px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            background: rgba(0,0,0,0.7);
-            color: #ffcc00;
-            padding: 12px 20px;
-            font-size: 16px;
-            font-weight: bold;
-            z-index: 2000;
-            font-family: monospace;
-            letter-spacing: 1px;
-            backdrop-filter: blur(4px);
-            border-radius: 30px;
-            width: fit-content;
-            margin: 0 auto;
-            pointer-events: none;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
     </style>
 </head>
 <body>
@@ -47,27 +26,23 @@
     </div>
     <div class="blackout" id="blackout"></div>
     <div class="video-wrapper" id="videoWrapper">
-        <video id="eventVideo" preload="auto" playsinline></video>
+        <video id="eventVideo" preload="auto" playsinline muted></video>
     </div>
-    <div class="sound-hint" id="soundHint">🔊 ATINGE ECRANUL PENTRU A ACTIVA SUNETUL</div>
 
     <script>
         const socket = io();
         socket.emit('register', 'projector');
 
-        fetch('/api/qr-data').then(res => res.json()).then(data => {
+        fetch('/api/qr-data').then(res=>res.json()).then(data=>{
             QRCode.toCanvas(document.getElementById('qrcode'), data.url, { width: 300 });
-        }).catch(err => console.error('QR error:', err));
+        });
 
         const video = document.getElementById('eventVideo');
         const videoWrapper = document.getElementById('videoWrapper');
         const blackoutDiv = document.getElementById('blackout');
         const appDiv = document.getElementById('app');
-        const soundHint = document.getElementById('soundHint');
 
-        let soundEnabled = false;
-
-        // Încarcă URL-ul video din config (R2 sau local)
+        // Suport R2: încarcă URL-ul din config dacă există
         fetch('/api/config')
             .then(r => r.json())
             .catch(() => ({}))
@@ -76,67 +51,22 @@
                 video.load();
             });
 
-        // Activează sunetul și pornește videoclipul dacă e deja afișat
-        function enableSoundAndPlay() {
-            if (soundEnabled) return;
-            soundEnabled = true;
-            video.muted = false;
-            soundHint.style.opacity = '0';
-            setTimeout(() => {
-                soundHint.style.display = 'none';
-            }, 500);
-            
-            // Dacă videoclipul este deja vizibil, pornește-l cu sunet
-            if (videoWrapper.style.display === 'block') {
-                video.play().catch(e => console.log('Play after enableSound:', e));
-            }
-        }
-
-        // Afișează videoclipul
         function showVideo() {
             blackoutDiv.style.display = 'none';
-            appDiv.classList.add('hidden');
             videoWrapper.style.display = 'block';
-            
-            if (soundEnabled) {
-                video.muted = false;
-                video.play().catch(e => console.log('Play error (sound enabled):', e));
-            } else {
-                video.muted = true;
-                video.play()
-                    .then(() => {
-                        soundHint.style.display = 'block';
-                        soundHint.style.opacity = '1';
-                    })
-                    .catch(e => console.log('Autoplay error:', e));
-            }
+            // Aceasta este logica originală care funcționa:
+            // pornește pe mute, apoi după 100ms dă unmute
+            video.play().then(() => {
+                setTimeout(() => { video.muted = false; }, 100);
+            }).catch(e => console.log('Video play error:', e));
         }
 
-        // Ascultă evenimentele de click pentru activarea sunetului (orice număr de click-uri, dar se activează o singură dată)
-        document.body.addEventListener('click', enableSoundAndPlay);
-        document.body.addEventListener('touchstart', enableSoundAndPlay);
-
-        // Socket events
         socket.on('sync-state', (state) => {
-            console.log('Sync state:', state);
-            if (state.blackout) {
-                appDiv.classList.add('hidden');
-                blackoutDiv.style.display = 'block';
-            }
-            if (state.videoPlaying) {
-                showVideo();
-            }
+            if (state.blackout) { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; }
+            if (state.videoPlaying) showVideo();
         });
-
-        socket.on('blackout', () => {
-            appDiv.classList.add('hidden');
-            blackoutDiv.style.display = 'block';
-        });
-
-        socket.on('play-video', () => {
-            showVideo();
-        });
-
+        socket.on('blackout', () => { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; });
+        socket.on('play-video', showVideo);
         socket.on('restart', () => {
             appDiv.classList.remove('hidden');
             blackoutDiv.style.display = 'none';
@@ -144,24 +74,15 @@
             video.pause();
             video.currentTime = 0;
             video.muted = true;
-            soundEnabled = false;
-            soundHint.style.display = 'block';
-            soundHint.style.opacity = '1';
         });
 
-        // Fullscreen
+        // Fullscreen la orice click (asta deblochează și sunetul indirect)
         document.body.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(() => {});
-            }
+            document.documentElement.requestFullscreen().catch(() => {});
         });
         document.body.addEventListener('touchstart', () => {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(() => {});
-            }
+            document.documentElement.requestFullscreen().catch(() => {});
         });
-
-        console.log('Projector ready - sunet disponibil după atingere ecran');
     </script>
 </body>
 </html>
