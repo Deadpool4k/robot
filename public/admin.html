@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arena - Admin Control</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .admin-panel {
+            background: #111;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            border: 1px solid #333;
+            box-shadow: 0 0 50px rgba(255,0,0,0.2);
+        }
+        
+        h1 {
+            color: #ff3333;
+            font-size: 2rem;
+            margin-bottom: 20px;
+            letter-spacing: 4px;
+        }
+        
+        .status {
+            color: #00ff00;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+        
+        .start-button {
+            background: #ff0000;
+            color: white;
+            border: none;
+            padding: 25px 50px;
+            font-size: 2rem;
+            font-weight: bold;
+            border-radius: 60px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 4px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(255,0,0,0.5);
+            width: 100%;
+            max-width: 300px;
+        }
+        
+        .start-button:hover {
+            background: #cc0000;
+            transform: scale(1.05);
+            box-shadow: 0 0 40px rgba(255,0,0,0.8);
+        }
+        
+        .start-button:active {
+            transform: scale(0.98);
+        }
+        
+        .info {
+            margin-top: 30px;
+            color: #666;
+            font-size: 0.8rem;
+        }
+        
+        .connected {
+            color: #00ff00;
+        }
+        
+        .disconnected {
+            color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-panel">
+        <h1>⚡ ARENA CONTROL ⚡</h1>
+        <div class="status">
+            Status: <span id="connectionStatus" class="disconnected">DEZCONECTAT</span>
+        </div>
+        <button class="start-button" id="startBtn">
+            ▶ START SEQUENCE ◼
+        </button>
+        <div class="info">
+            ⚠️ O SINGURĂ APĂSARE<br>
+            BLACKOUT + VIDEO PE TOATE ECRANELE
+        </div>
+    </div>
+    
+    <script>
+        const socket = io();
+        let isConnected = false;
+        
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            isConnected = true;
+            socket.emit('register', 'admin');
+            document.getElementById('connectionStatus').innerHTML = 'CONECTAT LA ARENĂ';
+            document.getElementById('connectionStatus').className = 'connected';
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Disconnected');
+            isConnected = false;
+            document.getElementById('connectionStatus').innerHTML = 'DEZCONECTAT';
+            document.getElementById('connectionStatus').className = 'disconnected';
+        });
+        
+        document.getElementById('startBtn').addEventListener('click', () => {
+            if (!isConnected) {
+                alert('Nu ești conectat la server! Verifică conexiunea.');
+                return;
+            }
+            
+            // Confirmare
+            if (confirm('SIGUR? BLACKOUT + VIDEO pe toate ecranele. Nu poți reveni.')) {
+                console.log('Sending start sequence...');
+                socket.emit('start-sequence');
+                
+                // Disable button after click
+                const btn = document.getElementById('startBtn');
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.innerText = '✓ SEQUENCE TRIMISĂ';
+                
+                // Re-enable after 10 seconds just in case
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.innerText = '▶ START SEQUENCE ◼';
+                }, 10000);
+            }
+        });
+    </script>
+</body>
+</html>

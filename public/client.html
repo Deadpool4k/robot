@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Arena - Jucător</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            touch-action: manipulation;
+        }
+        
+        .game-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+            overflow: hidden;
+        }
+        
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .score-board {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 10;
+            font-family: monospace;
+            letter-spacing: 2px;
+        }
+        
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: rgba(255,255,255,0.6);
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            font-size: 14px;
+            z-index: 10;
+        }
+        
+        .video-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            z-index: 1000;
+            background: #000;
+        }
+        
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .blackout {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 999;
+            display: none;
+        }
+        
+        .glitch-active {
+            animation: glitch-shake 0.1s infinite;
+        }
+        
+        @keyframes glitch-shake {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(-2px, 1px); }
+            50% { transform: translate(2px, -1px); }
+            75% { transform: translate(-1px, 2px); }
+            100% { transform: translate(1px, -2px); }
+        }
+        
+        .invert {
+            filter: invert(1);
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container" id="gameContainer">
+        <div class="score-board" id="score">SCORE: 0</div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="controls-hint">⬅️ APASĂ STÂNGA SAU DREAPTA ➡️</div>
+    </div>
+    
+    <div class="blackout" id="blackout"></div>
+    <div class="video-wrapper" id="videoWrapper">
+        <video id="eventVideo" preload="auto" muted></video>
+    </div>
+    
+    <script>
+        // ==================== DOODLE JUMP GAME ====================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height;
+        let score = 0;
+        let gameRunning = true;
+        
+        // Player
+        let player = {
+            x: 0,
+            y: 0,
+            width: 30,
+            height: 30,
+            velX: 0,
+            velY: 0,
+            gravity: 0.5,
+            jumpPower: -10,
+            grounded: false
+        };
+        
+        // Platforms
+        let platforms = [];
+        let platformWidth = 60;
+        let platformHeight = 15;
+        
+        // Touch controls
+        let touchLeft = false;
+        let touchRight = false;
+        let moveSpeed = 5;
+        
+        // Glitch effects
+        let glitchInterval;
+        let controlInverted = false;
+        let invertEndTime = 0;
+        
+        // Resize handler
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            initGame();
+        }
+        
+        function initGame() {
+            // Reset player position
+            player.width = Math.min(40, width * 0.1);
+            player.height = player.width;
+            player.x = width / 2 - player.width / 2;
+            player.y = height - 150;
+            player.velX = 0;
+            player.velY = 0;
+            score = 0;
+            updateScore();
+            
+            // Create platforms
+            platforms = [];
+            let numPlatforms = Math.floor(height / 80);
+            for (let i = 0; i < numPlatforms; i++) {
+                platforms.push({
+                    x: Math.random() * (width - platformWidth),
+                    y: height - 50 - (i * 80),
+                    width: platformWidth,
+                    height: platformHeight
+                });
+            }
+        }
+        
+        function updateScore() {
+            document.getElementById('score').innerText = `SCORE: ${Math.floor(score)}`;
+        }
+        
+        function handleInput() {
+            let move = 0;
+            if (touchLeft) move = -moveSpeed;
+            if (touchRight) move = moveSpeed;
+            
+            // Apply control inversion glitch
+            if (controlInverted) move = -move;
+            
+            player.velX = move;
+        }
+        
+        function updateGame() {
+            if (!gameRunning) return;
+            
+            handleInput();
+            
+            // Apply physics
+            player.velY += player.gravity;
+            player.x += player.velX;
+            player.y += player.velY;
+            
+            // Wall collision
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > width) player.x = width - player.width;
+            
+            // Platform collision
+            player.grounded = false;
+            for (let platform of platforms) {
+                if (player.velY > 0 && 
+                    player.y + player.height >= platform.y &&
+                    player.y + player.height <= platform.y + platform.height + 5 &&
+                    player.x + player.width > platform.x &&
+                    player.x < platform.x + platform.width) {
+                    player.velY = player.jumpPower;
+                    player.grounded = true;
+                    player.y = platform.y - player.height;
+                }
+            }
+            
+            // Camera follow
+            if (player.y < height / 3) {
+                let diff = height / 3 - player.y;
+                player.y += diff;
+                for (let platform of platforms) {
+                    platform.y += diff;
+                }
+                score += diff * 0.5;
+                updateScore();
+            }
+            
+            // Generate new platforms
+            if (platforms[platforms.length - 1].y > 0) {
+                platforms.push({
+                    x: Math.random() * (width - platformWidth),
+                    y: -platformHeight,
+                    width: platformWidth,
+                    height: platformHeight
+                });
+            }
+            
+            // Remove off-screen platforms
+            platforms = platforms.filter(p => p.y < height);
+            
+            // Death condition
+            if (player.y > height) {
+                gameRunning = false;
+                setTimeout(() => {
+                    initGame();
+                    gameRunning = true;
+                }, 1000);
+            }
+        }
+        
+        function draw() {
+            if (!ctx) return;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw sky gradient
+            let gradient = ctx.createLinearGradient(0, 0, 0, height);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(1, '#E0F6FF');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+            
+            // Draw clouds (simple)
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            for (let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.ellipse(100 + i * 200, 50, 50, 40, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw platforms
+            ctx.fillStyle = '#8B4513';
+            ctx.shadowBlur = 5;
+            for (let platform of platforms) {
+                ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+                ctx.fillStyle = '#A0522D';
+                ctx.fillRect(platform.x + 5, platform.y - 5, platform.width - 10, 5);
+                ctx.fillStyle = '#8B4513';
+            }
+            ctx.shadowBlur = 0;
+            
+            // Draw player
+            ctx.fillStyle = '#FF4444';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(player.x + 5, player.y + 8, 6, 6);
+            ctx.fillRect(player.x + player.width - 11, player.y + 8, 6, 6);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(player.x + 6, player.y + 10, 3, 3);
+            ctx.fillRect(player.x + player.width - 10, player.y + 10, 3, 3);
+            ctx.shadowBlur = 0;
+        }
+        
+        // Touch events
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touchX = e.touches[0].clientX - rect.left;
+            const center = width / 2;
+            
+            if (touchX < center) {
+                touchLeft = true;
+                touchRight = false;
+            } else {
+                touchRight = true;
+                touchLeft = false;
+            }
+        }
+        
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            touchLeft = false;
+            touchRight = false;
+        }
+        
+        // Game loop
+        function gameLoop() {
+            updateGame();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // ==================== GLITCH EFFECTS ====================
+        function startGlitchEffects() {
+            glitchInterval = setInterval(() => {
+                if (!gameRunning) return;
+                
+                const rand = Math.random();
+                const container = document.querySelector('.game-container');
+                
+                if (rand < 0.3) {
+                    // Screen shake
+                    container.classList.add('glitch-active');
+                    setTimeout(() => container.classList.remove('glitch-active'), 200);
+                }
+                
+                if (rand < 0.2) {
+                    // Color inversion
+                    document.body.classList.add('invert');
+                    setTimeout(() => document.body.classList.remove('invert'), 500);
+                }
+                
+                if (rand < 0.15) {
+                    // Control inversion for 2 seconds
+                    controlInverted = true;
+                    setTimeout(() => { controlInverted = false; }, 2000);
+                    
+                    // Show fake text artifact
+                    const artifact = document.createElement('div');
+                    artifact.textContent = '⚠️ SISTEM CORUPT ⚠️';
+                    artifact.style.position = 'fixed';
+                    artifact.style.top = '50%';
+                    artifact.style.left = '50%';
+                    artifact.style.transform = 'translate(-50%, -50%)';
+                    artifact.style.color = '#0F0';
+                    artifact.style.background = '#000';
+                    artifact.style.padding = '10px';
+                    artifact.style.fontFamily = 'monospace';
+                    artifact.style.zIndex = '100';
+                    artifact.style.fontSize = '12px';
+                    document.body.appendChild(artifact);
+                    setTimeout(() => artifact.remove(), 800);
+                }
+                
+                if (rand < 0.1) {
+                    // Random position glitch
+                    container.style.transform = `translate(${Math.random() * 10 - 5}px, ${Math.random() * 10 - 5}px)`;
+                    setTimeout(() => container.style.transform = '', 100);
+                }
+            }, 3000);
+        }
+        
+        // ==================== WEBSOCKET + VIDEO ====================
+        const socket = io();
+        socket.emit('register', 'client');
+        
+        const videoWrapper = document.getElementById('videoWrapper');
+        const video = document.getElementById('eventVideo');
+        const blackoutDiv = document.getElementById('blackout');
+        const gameContainer = document.getElementById('gameContainer');
+        
+        video.src = '/0501.mp4';
+        video.load();
+        
+        socket.on('blackout', () => {
+            console.log('Blackout - hiding game');
+            gameContainer.style.display = 'none';
+            blackoutDiv.style.display = 'block';
+            gameRunning = false;
+        });
+        
+        socket.on('play-video', () => {
+            console.log('Playing video');
+            blackoutDiv.style.display = 'none';
+            videoWrapper.style.display = 'block';
+            
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    setTimeout(() => { video.muted = false; }, 100);
+                }).catch(err => {
+                    console.error('Auto-play blocked, retrying');
+                    document.body.click();
+                    setTimeout(() => {
+                        video.muted = false;
+                        video.play();
+                    }, 100);
+                });
+            }
+        });
+        
+        // Initialize game
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        canvas.addEventListener('touchstart', handleTouchStart);
+        canvas.addEventListener('touchend', handleTouchEnd);
+        canvas.addEventListener('touchcancel', handleTouchEnd);
+        
+        gameLoop();
+        startGlitchEffects();
+        
+        console.log('Client ready');
+    </script>
+</body>
+</html>
