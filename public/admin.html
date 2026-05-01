@@ -28,12 +28,10 @@
         document.getElementById('startBtn').onclick = () => {
             if (confirm('START? Blackout + video pe toate ecranele.')) {
                 socket.emit('start-sequence');
-                document.getElementById('startBtn').disabled = true;
-                setTimeout(() => document.getElementById('startBtn').disabled = false, 10000);
             }
         };
         document.getElementById('restartBtn').onclick = () => {
-            if (confirm('RESTART? Se resetează totul (QR, joc, video).')) {
+            if (confirm('RESTART? Se resetează totul.')) {
                 socket.emit('restart');
             }
         };
