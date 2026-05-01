@@ -16,14 +16,19 @@
         
         body {
             background: #000;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
             font-family: 'Courier New', monospace;
             touch-action: manipulation;
         }
         
         .game-container {
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
             position: relative;
             background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
             overflow: hidden;
@@ -132,7 +137,6 @@
         let score = 0;
         let gameRunning = true;
         
-        // Player
         let player = {
             x: 0,
             y: 0,
@@ -145,22 +149,18 @@
             grounded: false
         };
         
-        // Platforms
         let platforms = [];
         let platformWidth = 60;
         let platformHeight = 15;
         
-        // Touch controls
         let touchLeft = false;
         let touchRight = false;
         let moveSpeed = 5;
         
-        // Glitch effects
         let glitchInterval;
         let controlInverted = false;
         let invertEndTime = 0;
         
-        // Resize handler
         function resizeCanvas() {
             width = window.innerWidth;
             height = window.innerHeight;
@@ -170,7 +170,6 @@
         }
         
         function initGame() {
-            // Reset player position
             player.width = Math.min(40, width * 0.1);
             player.height = player.width;
             player.x = width / 2 - player.width / 2;
@@ -180,7 +179,6 @@
             score = 0;
             updateScore();
             
-            // Create platforms
             platforms = [];
             let numPlatforms = Math.floor(height / 80);
             for (let i = 0; i < numPlatforms; i++) {
@@ -202,7 +200,6 @@
             if (touchLeft) move = -moveSpeed;
             if (touchRight) move = moveSpeed;
             
-            // Apply control inversion glitch
             if (controlInverted) move = -move;
             
             player.velX = move;
@@ -213,16 +210,13 @@
             
             handleInput();
             
-            // Apply physics
             player.velY += player.gravity;
             player.x += player.velX;
             player.y += player.velY;
             
-            // Wall collision
             if (player.x < 0) player.x = 0;
             if (player.x + player.width > width) player.x = width - player.width;
             
-            // Platform collision
             player.grounded = false;
             for (let platform of platforms) {
                 if (player.velY > 0 && 
@@ -236,7 +230,6 @@
                 }
             }
             
-            // Camera follow
             if (player.y < height / 3) {
                 let diff = height / 3 - player.y;
                 player.y += diff;
@@ -247,7 +240,6 @@
                 updateScore();
             }
             
-            // Generate new platforms
             if (platforms[platforms.length - 1].y > 0) {
                 platforms.push({
                     x: Math.random() * (width - platformWidth),
@@ -257,10 +249,8 @@
                 });
             }
             
-            // Remove off-screen platforms
             platforms = platforms.filter(p => p.y < height);
             
-            // Death condition
             if (player.y > height) {
                 gameRunning = false;
                 setTimeout(() => {
@@ -273,17 +263,14 @@
         function draw() {
             if (!ctx) return;
             
-            // Clear canvas
             ctx.clearRect(0, 0, width, height);
             
-            // Draw sky gradient
             let gradient = ctx.createLinearGradient(0, 0, 0, height);
             gradient.addColorStop(0, '#87CEEB');
             gradient.addColorStop(1, '#E0F6FF');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, width, height);
             
-            // Draw clouds (simple)
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
             for (let i = 0; i < 3; i++) {
                 ctx.beginPath();
@@ -291,7 +278,6 @@
                 ctx.fill();
             }
             
-            // Draw platforms
             ctx.fillStyle = '#8B4513';
             ctx.shadowBlur = 5;
             for (let platform of platforms) {
@@ -302,7 +288,6 @@
             }
             ctx.shadowBlur = 0;
             
-            // Draw player
             ctx.fillStyle = '#FF4444';
             ctx.shadowBlur = 10;
             ctx.fillRect(player.x, player.y, player.width, player.height);
@@ -315,7 +300,6 @@
             ctx.shadowBlur = 0;
         }
         
-        // Touch events
         function handleTouchStart(e) {
             e.preventDefault();
             const rect = canvas.getBoundingClientRect();
@@ -337,14 +321,12 @@
             touchRight = false;
         }
         
-        // Game loop
         function gameLoop() {
             updateGame();
             draw();
             requestAnimationFrame(gameLoop);
         }
         
-        // ==================== GLITCH EFFECTS ====================
         function startGlitchEffects() {
             glitchInterval = setInterval(() => {
                 if (!gameRunning) return;
@@ -353,23 +335,19 @@
                 const container = document.querySelector('.game-container');
                 
                 if (rand < 0.3) {
-                    // Screen shake
                     container.classList.add('glitch-active');
                     setTimeout(() => container.classList.remove('glitch-active'), 200);
                 }
                 
                 if (rand < 0.2) {
-                    // Color inversion
                     document.body.classList.add('invert');
                     setTimeout(() => document.body.classList.remove('invert'), 500);
                 }
                 
                 if (rand < 0.15) {
-                    // Control inversion for 2 seconds
                     controlInverted = true;
                     setTimeout(() => { controlInverted = false; }, 2000);
                     
-                    // Show fake text artifact
                     const artifact = document.createElement('div');
                     artifact.textContent = '⚠️ SISTEM CORUPT ⚠️';
                     artifact.style.position = 'fixed';
@@ -387,7 +365,6 @@
                 }
                 
                 if (rand < 0.1) {
-                    // Random position glitch
                     container.style.transform = `translate(${Math.random() * 10 - 5}px, ${Math.random() * 10 - 5}px)`;
                     setTimeout(() => container.style.transform = '', 100);
                 }
@@ -430,6 +407,21 @@
                         video.play();
                     }, 100);
                 });
+            }
+        });
+        
+        // Fullscreen on any click/touch
+        document.body.addEventListener('click', function() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            }
+        });
+        
+        document.body.addEventListener('touchstart', function() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
             }
         });
         
