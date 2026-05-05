@@ -21,6 +21,33 @@
         .glitch-color { animation: color-cycle 0.2s infinite; }
         @keyframes color-cycle { 0% { filter: hue-rotate(0deg); } 25% { filter: hue-rotate(90deg); } 50% { filter: hue-rotate(180deg); } 75% { filter: hue-rotate(270deg); } 100% { filter: hue-rotate(360deg); } }
         .invert { filter: invert(1); }
+        .glitch-rgb { filter: contrast(1.2) saturate(1.4) drop-shadow(4px 0 rgba(255,0,0,0.6)) drop-shadow(-4px 0 rgba(0,255,255,0.6)); }
+        .glitch-zoom { animation: zoom-pulse 0.18s ease-in-out 2; }
+        @keyframes zoom-pulse { 0% { transform: scale(1); } 50% { transform: scale(1.04); } 100% { transform: scale(1); } }
+        .glitch-scanlines {
+            background-image: repeating-linear-gradient(
+                to bottom,
+                rgba(255,255,255,0.06) 0px,
+                rgba(255,255,255,0.06) 1px,
+                transparent 2px,
+                transparent 4px
+            );
+            background-size: 100% 4px;
+            animation: scanline-shift 0.12s linear infinite;
+        }
+        @keyframes scanline-shift { from { background-position-y: 0; } to { background-position-y: 8px; } }
+        .glitch-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 2000;
+            opacity: 0;
+            background-image: radial-gradient(circle at 20% 30%, rgba(255,255,255,0.2), transparent 40%),
+                              radial-gradient(circle at 80% 65%, rgba(255,255,255,0.16), transparent 38%),
+                              repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px);
+            mix-blend-mode: screen;
+            transition: opacity 0.08s linear;
+        }
     </style>
 </head>
 <body>
@@ -30,6 +57,7 @@
         <div class="controls-hint">⬅️ STÂNGA | DREAPTA ➡️</div>
     </div>
     <div class="blackout" id="blackout"></div>
+    <div class="glitch-overlay" id="glitchOverlay"></div>
     <div class="video-wrapper" id="videoWrapper">
         <video id="eventVideo" preload="auto" playsinline muted></video>
     </div>
@@ -45,6 +73,10 @@
         let moveSpeed = 8;
         let controlInverted = false;
         let glitchInterval;
+        let glitchRunning = false;
+        let glitchBurstCount = 0;
+        const MAX_BURSTS = 2;
+        const glitchTimers = new Set();
 
         function resize() {
             width = window.innerWidth;
@@ -63,8 +95,16 @@
             score = 0;
             updateScore();
             platforms = [];
-            for (let i = 0; i < Math.floor(height/70); i++) {
-                platforms.push({ x: Math.random() * (width - 60), y: height - 50 - i*70, width: 60, height: 15 });
+            const gap = 82; // medium-hard: fewer platforms than before, still playable
+            const basePlatformCount = Math.max(7, Math.floor(height / gap));
+            for (let i = 0; i < basePlatformCount; i++) {
+                const pWidth = 52 + Math.random() * 18;
+                platforms.push({
+                    x: Math.random() * Math.max(1, (width - pWidth)),
+                    y: height - 50 - i * gap,
+                    width: pWidth,
+                    height: 14
+                });
             }
         }
 
@@ -106,7 +146,13 @@
             }
 
             if (platforms[platforms.length-1]?.y > 0) {
-                platforms.push({ x: Math.random() * (width - 60), y: -15, width: 60, height: 15 });
+                const pWidth = 50 + Math.random() * 20;
+                platforms.push({
+                    x: Math.random() * Math.max(1, (width - pWidth)),
+                    y: -15,
+                    width: pWidth,
+                    height: 14
+                });
             }
             platforms = platforms.filter(p => p.y < height);
             if (player.y > height) { gameRunning = false; setTimeout(() => { initGame(); gameRunning = true; }, 1000); }
@@ -134,22 +180,118 @@
         });
         canvas.addEventListener('touchend', (e) => { e.preventDefault(); touchLeft = false; touchRight = false; });
 
-        // GLITCH-URI (MULTE, DAR STABILE)
-        function startGlitches() {
-            glitchInterval = setInterval(() => {
-                if (!gameRunning) return;
-                const container = document.querySelector('.game-container');
-                const rand = Math.random();
-                if (rand < 0.4) { container.classList.add('glitch-shake'); setTimeout(() => container.classList.remove('glitch-shake'), 200); }
-                if (rand < 0.3) { document.body.classList.add('invert'); setTimeout(() => document.body.classList.remove('invert'), 400); }
-                if (rand < 0.25) { controlInverted = true; setTimeout(() => controlInverted = false, 2000); }
-                if (rand < 0.2) { container.classList.add('glitch-flip'); setTimeout(() => container.classList.remove('glitch-flip'), 300); }
-                if (rand < 0.25) { container.classList.add('glitch-color'); setTimeout(() => container.classList.remove('glitch-color'), 300); }
-                if (rand < 0.15) {
-                    container.style.transform = `translate(${Math.random() * 20 - 10}px, ${Math.random() * 20 - 10}px)`;
-                    setTimeout(() => container.style.transform = '', 100);
+        const glitchOverlay = document.getElementById('glitchOverlay');
+
+        function registerTimer(timerId) {
+            glitchTimers.add(timerId);
+            return timerId;
+        }
+
+        function unregisterTimer(timerId) {
+            glitchTimers.delete(timerId);
+        }
+
+        function clearVisualGlitches() {
+            const container = document.querySelector('.game-container');
+            if (container) {
+                container.classList.remove(
+                    'glitch-shake',
+                    'glitch-flip',
+                    'glitch-color',
+                    'glitch-rgb',
+                    'glitch-zoom',
+                    'glitch-scanlines'
+                );
+                container.style.transform = '';
+            }
+            document.body.classList.remove('invert');
+            if (glitchOverlay) glitchOverlay.style.opacity = '0';
+            controlInverted = false;
+        }
+
+        function glitchFlash(duration = 120) {
+            if (!glitchOverlay) return;
+            glitchOverlay.style.opacity = `${0.35 + Math.random() * 0.45}`;
+            const timer = registerTimer(setTimeout(() => {
+                glitchOverlay.style.opacity = '0';
+                unregisterTimer(timer);
+            }, duration));
+        }
+
+        function applyClassGlitch(className, duration = 200) {
+            const container = document.querySelector('.game-container');
+            if (!container) return;
+            container.classList.add(className);
+            const timer = registerTimer(setTimeout(() => {
+                container.classList.remove(className);
+                unregisterTimer(timer);
+            }, duration));
+        }
+
+        function triggerGlitchBurst() {
+            if (!glitchRunning || !gameRunning) return;
+            if (glitchBurstCount >= MAX_BURSTS) return;
+            glitchBurstCount++;
+
+            const container = document.querySelector('.game-container');
+            const rand = Math.random();
+            if (rand < 0.16) applyClassGlitch('glitch-shake', 160 + Math.random() * 140);
+            else if (rand < 0.30) applyClassGlitch('glitch-color', 180 + Math.random() * 220);
+            else if (rand < 0.44) applyClassGlitch('glitch-rgb', 140 + Math.random() * 180);
+            else if (rand < 0.56) applyClassGlitch('glitch-flip', 120 + Math.random() * 120);
+            else if (rand < 0.68) applyClassGlitch('glitch-zoom', 190 + Math.random() * 120);
+            else if (rand < 0.80) applyClassGlitch('glitch-scanlines', 220 + Math.random() * 200);
+            else if (rand < 0.90) {
+                controlInverted = true;
+                const timer = registerTimer(setTimeout(() => {
+                    controlInverted = false;
+                    unregisterTimer(timer);
+                }, 1200 + Math.random() * 1000));
+            } else {
+                if (container) {
+                    container.style.transform = `translate(${Math.random() * 24 - 12}px, ${Math.random() * 24 - 12}px) skew(${Math.random() * 4 - 2}deg)`;
+                    const timer = registerTimer(setTimeout(() => {
+                        container.style.transform = '';
+                        unregisterTimer(timer);
+                    }, 90 + Math.random() * 130));
                 }
-            }, 1500);
+            }
+
+            if (Math.random() < 0.65) glitchFlash(80 + Math.random() * 160);
+
+            const releaseTimer = registerTimer(setTimeout(() => {
+                glitchBurstCount = Math.max(0, glitchBurstCount - 1);
+                unregisterTimer(releaseTimer);
+            }, 280));
+        }
+
+        function scheduleNextGlitch() {
+            if (!glitchRunning) return;
+            const delay = 320 + Math.random() * 680; // shorter intervals: denser glitch moments
+            glitchInterval = registerTimer(setTimeout(() => {
+                triggerGlitchBurst();
+                unregisterTimer(glitchInterval);
+                scheduleNextGlitch();
+            }, delay));
+        }
+
+        function startGlitches() {
+            if (glitchRunning) return;
+            glitchRunning = true;
+            scheduleNextGlitch();
+        }
+
+        function stopGlitches() {
+            glitchRunning = false;
+            if (glitchInterval) {
+                clearTimeout(glitchInterval);
+                unregisterTimer(glitchInterval);
+                glitchInterval = undefined;
+            }
+            glitchTimers.forEach((t) => clearTimeout(t));
+            glitchTimers.clear();
+            glitchBurstCount = 0;
+            clearVisualGlitches();
         }
 
         // ========== WEBSOCKET + VIDEO ==========
@@ -176,16 +318,7 @@
         function showVideo(startTime = 0) {
             // Stop game + visual effects while video plays (prevents GPU overload/freezes)
             gameRunning = false;
-            if (glitchInterval) {
-                clearInterval(glitchInterval);
-                glitchInterval = undefined;
-            }
-            document.body.classList.remove('invert');
-            const container = document.querySelector('.game-container');
-            if (container) {
-                container.classList.remove('glitch-shake', 'glitch-flip', 'glitch-color');
-                container.style.transform = '';
-            }
+            stopGlitches();
 
             pendingVideoPlay = true;
             blackoutDiv.style.display = 'none';
@@ -275,7 +408,7 @@
             video.currentTime = 0;
             video.muted = true;
             initGame();
-            if (!glitchInterval) startGlitches();
+            startGlitches();
         });
 
         function goFull() {
