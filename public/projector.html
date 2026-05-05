@@ -58,11 +58,21 @@
             .then(r => r.json())
             .catch(() => ({}))
             .then(cfg => {
-                video.src = cfg.videoUrl || '/0501.mp4';
+                const url = (cfg?.videoUrl || '').toString().trim();
+                if (!url) {
+                    console.warn('VIDEO_URL missing; projector video playback disabled until configured.');
+                    return;
+                }
+                video.src = encodeURI(url);
                 video.load();
             });
 
+        let pendingVideoPlay = false;
         function showVideo(startTime = 0) {
+            if (!video.src) {
+                console.warn('play-video ignored: no configured video source.');
+                return;
+            }
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
             if (Number.isFinite(startTime) && startTime > 0) {
@@ -71,10 +81,39 @@
                 } catch {}
             }
             video.muted = true;
-            video.play().then(() => {
+            pendingVideoPlay = true;
+            const tryPlay = () => video.play().then(() => {
+                pendingVideoPlay = false;
                 setTimeout(() => { video.muted = false; }, 100);
-            }).catch(e => console.log('Video play error:', e));
+            }).catch((e) => {
+                console.log('Video play error:', e);
+            });
+            tryPlay();
+
+            const resume = () => {
+                if (!pendingVideoPlay) return;
+                tryPlay();
+            };
+            document.body.addEventListener('click', resume, { once: true, passive: true });
+            document.body.addEventListener('touchstart', resume, { once: true, passive: true });
         }
+
+        let lastRecoverAt = 0;
+        function recoverVideoPlayback() {
+            const now = Date.now();
+            if (now - lastRecoverAt < 1500) return;
+            lastRecoverAt = now;
+            if (videoWrapper.style.display !== 'block') return;
+            video.play().catch(() => {
+                try {
+                    video.load();
+                    video.play().catch(() => {});
+                } catch {}
+            });
+        }
+        video.addEventListener('stalled', recoverVideoPlayback);
+        video.addEventListener('waiting', recoverVideoPlayback);
+        video.addEventListener('error', recoverVideoPlayback);
 
         socket.on('sync-state', (state) => {
             if (state.blackout) { appDiv.classList.add('hidden'); blackoutDiv.style.display = 'block'; }

@@ -53,8 +53,9 @@ app.get('/api/qr-code', async (req, res) => {
   }
 });
 app.get('/api/config', (_req, res) => {
+  const configuredVideoUrl = (process.env.VIDEO_URL || '').trim();
   res.json({
-    videoUrl: process.env.VIDEO_URL || '/0501.mp4'
+    videoUrl: configuredVideoUrl || null
   });
 });
 
