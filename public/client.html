@@ -173,7 +173,7 @@
             });
 
         let pendingVideoPlay = false;
-        function showVideo() {
+        function showVideo(startTime = 0) {
             // Stop game + visual effects while video plays (prevents GPU overload/freezes)
             gameRunning = false;
             if (glitchInterval) {
@@ -191,7 +191,13 @@
             blackoutDiv.style.display = 'none';
             gameDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            video.muted = true; // autoplay-friendly + cerința: fără sunet
+            if (Number.isFinite(startTime) && startTime > 0) {
+                try {
+                    video.currentTime = startTime;
+                } catch {}
+            }
+            video.muted = true; // autoplay-friendly + cerinta: fara sunet pe telefon
+            video.volume = 0;
 
             const tryPlay = () => video.play().then(() => { pendingVideoPlay = false; }).catch(() => {});
             tryPlay();
@@ -224,6 +230,13 @@
         video.addEventListener('stalled', recoverVideoPlayback);
         video.addEventListener('waiting', recoverVideoPlayback);
         video.addEventListener('error', recoverVideoPlayback);
+        video.addEventListener('volumechange', () => {
+            // Enforce silent playback on client devices even if browser toggles state.
+            if (!video.muted || video.volume !== 0) {
+                video.muted = true;
+                video.volume = 0;
+            }
+        });
 
         socket.on('sync-state', (state) => {
     console.log('Sync state:', state);
@@ -236,7 +249,7 @@
     }
 
     if (state.videoPlaying) {
-        showVideo();
+        showVideo(state.videoTime || 0);
     } else {
         videoWrapper.style.display = 'none';
     }
@@ -248,8 +261,8 @@
             gameRunning = false;
         });
 
-        socket.on('play-video', () => {
-            showVideo();
+        socket.on('play-video', (payload = {}) => {
+            showVideo(payload.time || 0);
         });
 
         socket.on('restart', () => {

@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const QRCode = require('qrcode');
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +35,23 @@ app.get('/projector', (req, res) => res.sendFile(path.join(__dirname, 'public', 
 app.get('/client', (req, res) => res.sendFile(path.join(__dirname, 'public', 'client.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('/api/qr-data', (req, res) => res.json({ url: getClientUrl(req) }));
+app.get('/api/qr-code', async (req, res) => {
+  try {
+    const qrDataUrl = await QRCode.toDataURL(getClientUrl(req), {
+      width: 300,
+      margin: 1,
+      errorCorrectionLevel: 'H',
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+    res.json({ qrDataUrl });
+  } catch (error) {
+    console.error('QR generation error:', error);
+    res.status(500).json({ error: 'qr_generation_failed' });
+  }
+});
 app.get('/api/config', (_req, res) => {
   res.json({
     videoUrl: process.env.VIDEO_URL || '/0501.mp4'
@@ -42,11 +60,14 @@ app.get('/api/config', (_req, res) => {
 
 io.on('connection', (socket) => {
   console.log('New connection:', socket.id);
+  socket.data.role = null;
 
   socket.on('register', (type) => {
     clients.projectors.delete(socket);
     clients.clients.delete(socket);
     clients.admins.delete(socket);
+
+    socket.data.role = type;
 
     if (type === 'projector') {
       clients.projectors.add(socket);
@@ -73,6 +94,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('start-sequence', () => {
+    if (socket.data.role !== 'admin') {
+      console.warn(`Unauthorized start-sequence from ${socket.id}`);
+      return;
+    }
     console.log('START SEQUENCE');
     const targets = [...clients.projectors, ...clients.clients];
     targets.forEach(c => c.emit('blackout'));
@@ -89,6 +114,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('restart', () => {
+    if (socket.data.role !== 'admin') {
+      console.warn(`Unauthorized restart from ${socket.id}`);
+      return;
+    }
     console.log('RESTART');
     globalBlackout = false;
     globalVideoPlaying = false;
