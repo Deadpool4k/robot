@@ -21,6 +21,7 @@
         .glitch-color { animation: color-cycle 0.2s infinite; }
         @keyframes color-cycle { 0% { filter: hue-rotate(0deg); } 25% { filter: hue-rotate(90deg); } 50% { filter: hue-rotate(180deg); } 75% { filter: hue-rotate(270deg); } 100% { filter: hue-rotate(360deg); } }
         .invert { filter: invert(1); }
+        .glitch-dark-tone { filter: brightness(0.45) contrast(1.45) saturate(0.55) hue-rotate(160deg); }
         .glitch-rgb { filter: contrast(1.2) saturate(1.4) drop-shadow(4px 0 rgba(255,0,0,0.6)) drop-shadow(-4px 0 rgba(0,255,255,0.6)); }
         .glitch-zoom { animation: zoom-pulse 0.18s ease-in-out 2; }
         @keyframes zoom-pulse { 0% { transform: scale(1); } 50% { transform: scale(1.04); } 100% { transform: scale(1); } }
@@ -48,6 +49,19 @@
             mix-blend-mode: screen;
             transition: opacity 0.08s linear;
         }
+        .glitch-image {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: none;
+            z-index: 2100;
+            opacity: 0;
+            transition: opacity 0.18s ease;
+            mix-blend-mode: lighten;
+            filter: contrast(1.25) saturate(0.7);
+        }
     </style>
 </head>
 <body>
@@ -58,6 +72,7 @@
     </div>
     <div class="blackout" id="blackout"></div>
     <div class="glitch-overlay" id="glitchOverlay"></div>
+    <img id="glitchImage" class="glitch-image" src="/glitch-image.png" alt="glitch effect" />
     <div class="video-wrapper" id="videoWrapper">
         <video id="eventVideo" preload="auto" playsinline muted></video>
     </div>
@@ -75,8 +90,11 @@
         let glitchInterval;
         let glitchRunning = false;
         let glitchBurstCount = 0;
-        const MAX_BURSTS = 2;
+        const MAX_BURSTS = 3;
         const glitchTimers = new Set();
+        const PLATFORM_GAP = 82;
+        const PLATFORM_MIN = 7;
+        let platformTopY = 0;
 
         function resize() {
             width = window.innerWidth;
@@ -95,17 +113,17 @@
             score = 0;
             updateScore();
             platforms = [];
-            const gap = 82; // medium-hard: fewer platforms than before, still playable
-            const basePlatformCount = Math.max(7, Math.floor(height / gap));
+            const basePlatformCount = Math.max(PLATFORM_MIN, Math.floor(height / PLATFORM_GAP));
             for (let i = 0; i < basePlatformCount; i++) {
                 const pWidth = 52 + Math.random() * 18;
                 platforms.push({
                     x: Math.random() * Math.max(1, (width - pWidth)),
-                    y: height - 50 - i * gap,
+                    y: height - 50 - i * PLATFORM_GAP,
                     width: pWidth,
                     height: 14
                 });
             }
+            platformTopY = platforms[platforms.length - 1]?.y || 0;
         }
 
         function updateScore() { document.getElementById('score').innerText = `SCORE: ${Math.floor(score)}`; }
@@ -145,16 +163,18 @@
                 updateScore();
             }
 
-            if (platforms[platforms.length-1]?.y > 0) {
+            while (platformTopY > -PLATFORM_GAP) {
+                platformTopY -= PLATFORM_GAP;
                 const pWidth = 50 + Math.random() * 20;
                 platforms.push({
                     x: Math.random() * Math.max(1, (width - pWidth)),
-                    y: -15,
+                    y: platformTopY,
                     width: pWidth,
                     height: 14
                 });
             }
             platforms = platforms.filter(p => p.y < height);
+            platformTopY = platforms.reduce((minY, p) => Math.min(minY, p.y), height);
             if (player.y > height) { gameRunning = false; setTimeout(() => { initGame(); gameRunning = true; }, 1000); }
         }
 
@@ -181,6 +201,7 @@
         canvas.addEventListener('touchend', (e) => { e.preventDefault(); touchLeft = false; touchRight = false; });
 
         const glitchOverlay = document.getElementById('glitchOverlay');
+        const glitchImage = document.getElementById('glitchImage');
 
         function registerTimer(timerId) {
             glitchTimers.add(timerId);
@@ -198,6 +219,7 @@
                     'glitch-shake',
                     'glitch-flip',
                     'glitch-color',
+                    'glitch-dark-tone',
                     'glitch-rgb',
                     'glitch-zoom',
                     'glitch-scanlines'
@@ -206,6 +228,7 @@
             }
             document.body.classList.remove('invert');
             if (glitchOverlay) glitchOverlay.style.opacity = '0';
+            if (glitchImage) glitchImage.style.opacity = '0';
             controlInverted = false;
         }
 
@@ -228,6 +251,15 @@
             }, duration));
         }
 
+        function showGlitchImage(duration = 900) {
+            if (!glitchImage) return;
+            glitchImage.style.opacity = `${0.35 + Math.random() * 0.5}`;
+            const timer = registerTimer(setTimeout(() => {
+                glitchImage.style.opacity = '0';
+                unregisterTimer(timer);
+            }, duration));
+        }
+
         function triggerGlitchBurst() {
             if (!glitchRunning || !gameRunning) return;
             if (glitchBurstCount >= MAX_BURSTS) return;
@@ -235,18 +267,19 @@
 
             const container = document.querySelector('.game-container');
             const rand = Math.random();
-            if (rand < 0.16) applyClassGlitch('glitch-shake', 160 + Math.random() * 140);
-            else if (rand < 0.30) applyClassGlitch('glitch-color', 180 + Math.random() * 220);
-            else if (rand < 0.44) applyClassGlitch('glitch-rgb', 140 + Math.random() * 180);
-            else if (rand < 0.56) applyClassGlitch('glitch-flip', 120 + Math.random() * 120);
-            else if (rand < 0.68) applyClassGlitch('glitch-zoom', 190 + Math.random() * 120);
-            else if (rand < 0.80) applyClassGlitch('glitch-scanlines', 220 + Math.random() * 200);
-            else if (rand < 0.90) {
+            if (rand < 0.12) applyClassGlitch('glitch-shake', 180 + Math.random() * 160);
+            else if (rand < 0.24) applyClassGlitch('glitch-color', 250 + Math.random() * 300);
+            else if (rand < 0.36) applyClassGlitch('glitch-rgb', 220 + Math.random() * 260);
+            else if (rand < 0.48) applyClassGlitch('glitch-scanlines', 350 + Math.random() * 420);
+            else if (rand < 0.58) applyClassGlitch('glitch-zoom', 220 + Math.random() * 160);
+            else if (rand < 0.68) applyClassGlitch('glitch-dark-tone', 3000); // dark colors for 3 seconds
+            else if (rand < 0.78) applyClassGlitch('glitch-flip', 2000); // upside-down for 2 seconds
+            else if (rand < 0.88) {
                 controlInverted = true;
                 const timer = registerTimer(setTimeout(() => {
                     controlInverted = false;
                     unregisterTimer(timer);
-                }, 1200 + Math.random() * 1000));
+                }, 2000 + Math.random() * 1200));
             } else {
                 if (container) {
                     container.style.transform = `translate(${Math.random() * 24 - 12}px, ${Math.random() * 24 - 12}px) skew(${Math.random() * 4 - 2}deg)`;
@@ -258,16 +291,17 @@
             }
 
             if (Math.random() < 0.65) glitchFlash(80 + Math.random() * 160);
+            if (Math.random() < 0.25) showGlitchImage(900 + Math.random() * 700);
 
             const releaseTimer = registerTimer(setTimeout(() => {
                 glitchBurstCount = Math.max(0, glitchBurstCount - 1);
                 unregisterTimer(releaseTimer);
-            }, 280));
+            }, 350));
         }
 
         function scheduleNextGlitch() {
             if (!glitchRunning) return;
-            const delay = 320 + Math.random() * 680; // shorter intervals: denser glitch moments
+            const delay = 250 + Math.random() * 520; // frequent glitch cadence
             glitchInterval = registerTimer(setTimeout(() => {
                 triggerGlitchBurst();
                 unregisterTimer(glitchInterval);
