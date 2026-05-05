@@ -109,7 +109,8 @@
             player.height = player.width;
             player.x = width/2 - player.width/2;
             player.y = height - 150;
-            player.velX = 0; player.velY = 0;
+            player.velX = 0;
+            player.velY = 1;
             score = 0;
             updateScore();
             platforms = [];
@@ -123,6 +124,14 @@
                     height: 14
                 });
             }
+            // Guaranteed starter platform under the player so game always starts playable.
+            const starterWidth = 120;
+            platforms.push({
+                x: Math.max(0, Math.min(width - starterWidth, player.x + player.width / 2 - starterWidth / 2)),
+                y: player.y + player.height + 10,
+                width: starterWidth,
+                height: 14
+            });
             platformTopY = platforms[platforms.length - 1]?.y || 0;
         }
 
