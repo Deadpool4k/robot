@@ -361,6 +361,35 @@
             });
 
         let pendingVideoPlay = false;
+        let playbackWatchdog = null;
+        let lastVideoTime = 0;
+        let lastProgressAt = 0;
+        function startPlaybackWatchdog() {
+            if (playbackWatchdog) return;
+            lastVideoTime = video.currentTime || 0;
+            lastProgressAt = Date.now();
+            playbackWatchdog = setInterval(() => {
+                if (videoWrapper.style.display !== 'block') return;
+                const now = Date.now();
+                const current = video.currentTime || 0;
+                if (current > lastVideoTime + 0.02) {
+                    lastVideoTime = current;
+                    lastProgressAt = now;
+                    return;
+                }
+                // If video time is stuck for >1.2s, nudge forward and force play.
+                if (now - lastProgressAt > 1200) {
+                    try { video.currentTime = Math.max(0, current + 0.05); } catch {}
+                    video.play().catch(() => {});
+                    lastProgressAt = now;
+                }
+            }, 300);
+        }
+        function stopPlaybackWatchdog() {
+            if (!playbackWatchdog) return;
+            clearInterval(playbackWatchdog);
+            playbackWatchdog = null;
+        }
         function syncVideoPosition(targetTime, force = false) {
             if (!Number.isFinite(targetTime) || targetTime < 0) return;
             const drift = Math.abs((video.currentTime || 0) - targetTime);
@@ -386,6 +415,7 @@
             syncVideoPosition(startTime, true);
             video.muted = true; // autoplay-friendly + cerinta: fara sunet pe telefon
             video.volume = 0;
+            startPlaybackWatchdog();
 
             const tryPlay = () => video.play().then(() => { pendingVideoPlay = false; }).catch(() => {});
             tryPlay();
@@ -445,6 +475,7 @@
         }
     } else {
         videoWrapper.style.display = 'none';
+        stopPlaybackWatchdog();
     }
 });
 
@@ -464,6 +495,7 @@
             gameDiv.style.display = 'block';
             blackoutDiv.style.display = 'none';
             videoWrapper.style.display = 'none';
+            stopPlaybackWatchdog();
             video.pause();
             video.currentTime = 0;
             video.muted = true;
