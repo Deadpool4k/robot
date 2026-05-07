@@ -361,6 +361,15 @@
             });
 
         let pendingVideoPlay = false;
+        function syncVideoPosition(targetTime, force = false) {
+            if (!Number.isFinite(targetTime) || targetTime < 0) return;
+            const drift = Math.abs((video.currentTime || 0) - targetTime);
+            if (force || drift > 0.35) {
+                try {
+                    video.currentTime = targetTime;
+                } catch {}
+            }
+        }
         function showVideo(startTime = 0) {
             if (!video.src) {
                 console.warn('play-video ignored: no configured video source.');
@@ -374,11 +383,7 @@
             blackoutDiv.style.display = 'none';
             gameDiv.style.display = 'none';
             videoWrapper.style.display = 'block';
-            if (Number.isFinite(startTime) && startTime > 0) {
-                try {
-                    video.currentTime = startTime;
-                } catch {}
-            }
+            syncVideoPosition(startTime, true);
             video.muted = true; // autoplay-friendly + cerinta: fara sunet pe telefon
             video.volume = 0;
 
@@ -432,7 +437,12 @@
     }
 
     if (state.videoPlaying) {
-        showVideo(state.videoTime || 0);
+        const targetTime = state.videoTime || 0;
+        if (videoWrapper.style.display !== 'block' || video.paused) {
+            showVideo(targetTime);
+        } else {
+            syncVideoPosition(targetTime, false);
+        }
     } else {
         videoWrapper.style.display = 'none';
     }

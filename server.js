@@ -14,12 +14,50 @@ app.use(express.static(path.join(__dirname, 'public')));
 let globalBlackout = false;
 let globalVideoPlaying = false;
 let globalVideoStartTime = null;  // ← nou: momentul când a început video-ul (ms)
+let syncInterval = null;
 
 const clients = {
   projectors: new Set(),
   clients: new Set(),
   admins: new Set()
 };
+
+function getElapsedVideoTime() {
+  return globalVideoStartTime ? (Date.now() - globalVideoStartTime) / 1000 : 0;
+}
+
+function emitSyncStateTo(socket) {
+  const elapsed = getElapsedVideoTime();
+  socket.emit('sync-state', {
+    blackout: globalBlackout,
+    videoPlaying: globalVideoPlaying,
+    videoTime: elapsed
+  });
+}
+
+function emitSyncStateToTargets() {
+  const elapsed = getElapsedVideoTime();
+  const payload = {
+    blackout: globalBlackout,
+    videoPlaying: globalVideoPlaying,
+    videoTime: elapsed
+  };
+  [...clients.projectors, ...clients.clients].forEach((c) => c.emit('sync-state', payload));
+}
+
+function startSyncLoop() {
+  if (syncInterval) clearInterval(syncInterval);
+  syncInterval = setInterval(() => {
+    if (!globalVideoPlaying) return;
+    emitSyncStateToTargets();
+  }, 1000);
+}
+
+function stopSyncLoop() {
+  if (!syncInterval) return;
+  clearInterval(syncInterval);
+  syncInterval = null;
+}
 
 const getClientUrl = (req) => {
   const forwardedProto = (req.headers['x-forwarded-proto'] || '').toString().split(',')[0].trim();
@@ -72,22 +110,10 @@ io.on('connection', (socket) => {
 
     if (type === 'projector') {
       clients.projectors.add(socket);
-      const elapsed = globalVideoStartTime ? (Date.now() - globalVideoStartTime) / 1000 : 0;
-      socket.emit('sync-state', { 
-        blackout: globalBlackout, 
-        videoPlaying: globalVideoPlaying,
-        videoTime: elapsed
-      });
-      if (globalVideoPlaying) socket.emit('play-video', { time: elapsed });
+      emitSyncStateTo(socket);
     } else if (type === 'client') {
       clients.clients.add(socket);
-      const elapsed = globalVideoStartTime ? (Date.now() - globalVideoStartTime) / 1000 : 0;
-      socket.emit('sync-state', { 
-        blackout: globalBlackout, 
-        videoPlaying: globalVideoPlaying,
-        videoTime: elapsed
-      });
-      if (globalVideoPlaying) socket.emit('play-video', { time: elapsed });
+      emitSyncStateTo(socket);
     } else if (type === 'admin') {
       clients.admins.add(socket);
     }
@@ -100,17 +126,18 @@ io.on('connection', (socket) => {
       return;
     }
     console.log('START SEQUENCE');
-    const targets = [...clients.projectors, ...clients.clients];
-    targets.forEach(c => c.emit('blackout'));
+    [...clients.projectors, ...clients.clients].forEach((c) => c.emit('blackout'));
     globalBlackout = true;
     globalVideoPlaying = false;
     globalVideoStartTime = null;
+    stopSyncLoop();
+    emitSyncStateToTargets();
 
     setTimeout(() => {
       globalVideoStartTime = Date.now();
       globalVideoPlaying = true;
-      const elapsed = 0;
-      targets.forEach(c => c.emit('play-video', { time: elapsed }));
+      emitSyncStateToTargets();
+      startSyncLoop();
     }, 2000);
   });
 
@@ -123,6 +150,8 @@ io.on('connection', (socket) => {
     globalBlackout = false;
     globalVideoPlaying = false;
     globalVideoStartTime = null;
+    stopSyncLoop();
+    emitSyncStateToTargets();
     const all = [...clients.projectors, ...clients.clients];
     all.forEach(c => c.emit('restart'));
   });
