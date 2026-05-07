@@ -476,6 +476,12 @@
     } else {
         videoWrapper.style.display = 'none';
         stopPlaybackWatchdog();
+        // Ensure gameplay resumes when server is in idle state.
+        if (!state.blackout) {
+            gameDiv.style.display = 'block';
+            gameRunning = true;
+            if (!glitchRunning) startGlitches();
+        }
     }
 });
 
